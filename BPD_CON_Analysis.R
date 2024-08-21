@@ -17,82 +17,9 @@ library(patchwork)
 library(ggpubr)
 library(BayesianFirstAid)
 
-# Clean -------------------------------------------------------------------
+# Load Data ---------------------------------------------------------------
 
-idsv5 <- read.csv('Data/v5_full_questionnaire.csv')
-idsv5 <- idsv5 %>%
-  dplyr::select(ID=Participant.Public.ID, Response) %>%
-  filter(grepl("^P|^\\(", Response)) %>%
-  mutate(Response = gsub("[()]", '', Response))
-
-idsv4 <- read.csv('Data/v4_full_questionnaire.csv')
-idsv4 <- idsv4 %>%
-  dplyr::select(ID=Participant.Public.ID, Response) %>%
-  filter(grepl("^P|^\\(", Response))
-
-ids <- rbind(idsv4, idsv5)
-
-intent_datv5  <- read.csv('Data/v5_full_task.csv')
-intent_datv4  <- read.csv('Data/v4_full_task.csv')
-
-intent_datv4 <- intent_datv4 %>%
-  group_by(Participant.Public.ID) %>%
-  group_modify(~ filter_past_end(.x, 'display', 'end')) %>%
-  ungroup() %>%
-  clean_gorilla_csv() %>%
-  plyr::join(., idsv4, by = 'ID') %>%
-  mutate(ID = Response) %>%
-  dplyr::select(-ID, -Response) %>%
-  na.omit()
-
-intent_datv5 <- intent_datv5 %>%
-  group_by(Participant.Public.ID) %>%
-  group_modify(~ filter_past_end(.x, 'display', 'end')) %>%
-  ungroup() %>%
-  clean_gorilla_csv() %>%
-  plyr::join(., idsv5, by = 'ID') %>%
-  mutate(ID = Response) %>%
-  dplyr::select(-ID, -Response) %>%
-  na.omit()
-
-intent_dat     <- rbind(intent_datv4, intent_datv5)
-intent_dat_126 <- intent_dat %>% group_by(ID) %>% filter(n()==126)
-
-## Make data Matlab ready --------------------------------------------------------------
-
-# This is only needed if you wish to refit the data
-
-intent_dat_126_matlab   <- intent_dat_126
-intent_dat_126_matlab   <- intent_dat_126_matlab %>% mutate(group=ifelse(nchar(ID)<10, 1, 2))
-ID1 <- intent_dat_126_matlab %>% filter(group==1) %>% ungroup() %>% dplyr::select(ID) %>% unique() %>% as.data.frame()
-ID2 <- intent_dat_126_matlab %>% filter(group==2) %>% ungroup() %>% dplyr::select(ID) %>% unique() %>% as.data.frame()
-#
-#intent_dat_126_matlab$ID<-as.numeric(as.factor(intent_dat_126$ID))
-#write.csv(intent_dat_126_matlab %>% filter(group==1),
-#          'Data/BPD_Data/formatlab_BPD_full_g1.csv')
-#
-#write.csv(intent_dat_126_matlab %>% filter(group==2),
-#          'Data/BPD_Data/formatlab_BPD_full_g2.csv')
-#
-
-## Bind psychometrics ------------------------------------------------------
-
-intent_psychometrics <- read.csv("Data/psychometrics.csv")
-
-intent_psychometrics <-  intent_psychometrics %>%
-  mutate(RGPTSA=rowSums(dplyr::select(.,GPTS_A1:GPTS_A8))-8,
-         RGPTSB=rowSums(dplyr::select(.,GPTS_B1,GPTS_B4:GPTS_B7, GPTS_B10:GPTS_B11, GPTS_B14:GPTS_B16))-10,
-         Binary_GPTSB=ifelse(RGPTSB>11, 1, 0))%>%
-  dplyr::select(ID, Gender, Gender_ifother, Age, PlaceofBirth, Ethnicity, Employmentstatus,
-                SocialDeprivationRank, HouseholdIncome, EducationLevel, YearsinEdu, MotherYearsinEdu,
-                FatherYearsinEdu,
-                MZQ_TotalScore, MZQ_RSR, MZQ_EA, MZQ_RA, MZQ_PEM, CAMSQ_Self, CAMSQ_Other, CAMSQ_SODiscrep,
-                GPTSSRef=GPTSsRef, GPTSPers, GPTSTotal = GPTStotal, RGPTSA, RGPTSB, Binary_GPTSB,
-                PA, SA, EA, PN, EN, CTQtot, A_ETS_Mistrust, A_ETS_Trust, A_ETS_Credulity)
-
-#bind psychometrics
-
-intent_dat <- plyr::join(intent_dat_126, intent_psychometrics, by = 'ID')
+intent_dat <- read.csv('Data/intent_dat.csv')
 
 ## Colours for groups in plots ------------------------------------------------------
 
@@ -119,7 +46,6 @@ t.test(SocialDeprivationRank ~ group, demos_dat)
 sd(na.omit(demos_dat$Age[demos_dat$group=='CON']))
 sd(na.omit(demos_dat$YearsinEdu[demos_dat$group=='BPD']))
 sd(na.omit(demos_dat$SocialDeprivationRank[demos_dat$group=='CON']))
-sd(na.omit(demos_dat$HouseholdIncome[demos_dat$group=='BPD']))
 
 sd(na.omit(demos_dat$A_ETS_Credulity[demos_dat$group=='CON']))
 sd(na.omit(demos_dat$A_ETS_Credulity[demos_dat$group=='BPD']))
