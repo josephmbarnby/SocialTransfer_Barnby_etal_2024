@@ -23,3 +23,4 @@ Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is 
 * `Analysis` <br />
 #Run this to reproduce all results from the paper <br />
      ├── BPD_CON_Analysis.R # Core analysis file to produce outcomes in the paper <br/>
+     ├── UtilityFunctions.R # Custom utility functions used within the core analysis script <br/>     
