@@ -1,26 +1,42 @@
 # SocialTransfer (Barnby et al., 2024)
 Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is Disrupted in Borderline Personality Disorder"
 
-* `Data` <br />
-#real behavioural data <br />
-     ├── intent_dat.csv # cleaned behavioural data from the Intentions Game <br />
-* `Data_Simulated` <br />
-#model-simulated behavioural data for each group {g1=BPD, g2=CON} <br />
-     ├── full_sim_g1.csv #full model results (M4) <br />
-     ├── full_sim_g2.csv #full model results (M1) <br />
-     ├── data_sim_g1.csv #model-simulated actions (M4) <br />
-     ├── data_sim_g2.csv #model-simulated actions (M1) <br />
-     ├── full_sim_g1_M3.csv #full model results for M3 <br />
-     ├── full_sim_g2_M3.csv #full model results for M3 <br />
-* `Models` <br />
-#Model files to fit and simulate data.  <br />
-     ├── M1.m <br />
-     ├── M2.m <br />
-     ├── M3.m <br />
-     ├── M4.m <br />
-     ├── Beta.m <br />
-     ├── Utilities <br />
-* `Analysis` <br />
-#Run this to reproduce all results from the paper <br />
-     ├── BPD_CON_Analysis.R # Core analysis file to produce outcomes in the paper <br/>
-     ├── UtilityFunctions.R # Custom utility functions used within the core analysis script <br/>     
+# Project Overview
+
+This repository contains data and codes for analyzing and simulating behavioral data from the Intentions Game, including both real and model-simulated data.
+
+## Directory Structure
+
+### 1. `Data`
+**Real Behavioral Data**
+
+- **intent_dat.csv**: Cleaned behavioural data from the Intentions Game.
+
+### 2. `Data_Simulated`
+**Model-Simulated Behavioral Data** for each group:
+  - **g1**: Borderline Personality Disorder (BPD)
+  - **g2**: Control Group (CON)
+
+- **full_sim_g1.csv**: Full model results for the BPD group (Model M4).
+- **full_sim_g2.csv**: Full model results for the Control group (Model M1).
+- **data_sim_g1.csv**: Model-simulated actions for BPD group (Model M4).
+- **data_sim_g2.csv**: Model-simulated actions for Control group (Model M1).
+- **full_sim_g1_M3.csv**: Full model results for the BPD group (Model M3).
+- **full_sim_g2_M3.csv**: Full model results for the Control group (Model M3).
+
+### 3. `Models`
+**Model Files** to fit and simulate data:
+
+- **M1.m**: Model 1 file.
+- **M2.m**: Model 2 file.
+- **M3.m**: Model 3 file.
+- **M4.m**: Model 4 file.
+- **Beta.m**: Model Beta file.
+- **Utilities**: Directory containing utility scripts for model simulations.
+
+### 4. `Analysis`
+**Scripts for Reproducing Results** from the paper:
+
+- **BPD_CON_Analysis.R**: Core analysis script to produce outcomes as presented in the paper.
+- **UtilityFunctions.R**: Custom utility functions used within the core analysis script.
+    
