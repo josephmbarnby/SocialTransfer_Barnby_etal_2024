@@ -21,5 +21,5 @@ Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is 
      ├── Beta.m <br />
      ├── Utilities <br />
 * `Analysis` <br />
-# Run this to reproduce all results from the paper <br />
+#Run this to reproduce all results from the paper <br />
      ├── BPD_CON_Analysis.R # Core analysis file to produce outcomes in the paper <br/>
