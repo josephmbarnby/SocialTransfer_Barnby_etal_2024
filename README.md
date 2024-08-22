@@ -1,18 +1,25 @@
 # SocialTransfer (Barnby et al., 2024)
 Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is Disrupted in Borderline Personality Disorder"
 
-* `data` <br />
+* `Data` <br />
+#real behavioural data
      ├── intent_dat.csv # cleaned behavioural data from the Intentions Game <br />
-     ├── data_notrialnum.csv # # data from two simulated participants, without trials numbers <br />
-     ├── data_singular.csv # data from one single simulated participant <br />
+* `Data_Simulated` <br />
+#model-simulated behavioural data for each group {g1=BPD, g2=CON}
+     ├── full_sim_g1.csv #full model results (M4) <br />
+     ├── full_sim_g2.csv #full model results (M1) <br />
+     ├── data_sim_g1.csv #model-simulated actions (M4) <br />
+     ├── data_sim_g2.csv #model-simulated actions (M1) <br />
+     ├── full_sim_g1_M3.csv #full model results for M3 <br />
+     ├── full_sim_g2_M3.csv #full model results for M3 <br />
 * `Models` <br />
-     ├── M1.m
-     ├── M2.m
-     ├── M3.m
-     ├── M4.m
-     ├── Beta.m
-     ├── Utilities
-* `results` <br />
-     ├── Wellcome Data Science Ideathon - Proposal.pdf # Proposal <br />
-     ├── Wellcome Data Science Ideathon - Budget.pdf # Budget <br />
-     ├── Hypatia_Presentation.pdf # Presentation <br />
+#Model files to fit and simulate data. 
+     ├── M1.m <br />
+     ├── M2.m <br />
+     ├── M3.m <br />
+     ├── M4.m <br />
+     ├── Beta.m <br />
+     ├── Utilities <br />
+* `Analysis` <br />
+#Run this to reproduce all results from the paper
+     ├── BPD_CON_Analysis.R # Core analysis file to produce outcomes in the paper <br/>
