@@ -1,9 +1,6 @@
-# SocialTransfer (Barnby et al., 2024)
-Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is Disrupted in Borderline Personality Disorder"
-
 # Project Overview
 
-This repository contains data and codes for analyzing and simulating behavioral data from the Intentions Game, including both real and model-simulated data.
+This repository contains data and codes for analyzing and simulating behavioral data from the Intentions Game, including both real and model-simulated data. Repo for the paper: "Self-Other Generalisation Shapes Social Interaction and Is Disrupted in Borderline Personality Disorder"
 
 ## Directory Structure
 
