@@ -1,26 +1,12 @@
-% Barnby & Dayan (2021) Inequality Aversion and Paranoia
+% CC JMBarnby (2024)
 %
-% Joe Barnby j.barnby@uq.edu.au 2021
+% josephmbarnby@gmail.com
 
 % FULL BAYESIAN GENERATIVE MODEL
 % Feed the model the desired parameters when simulating (e.g. alpha = 2,
 % beta = -5)
 % Feed the model normally distributed parameters when fitting
 % e.g. m = 0, v = 7.5
-
-% Estimates:
-
-%1  alpha_mu; alpha_sigma and beta_mu; beta_sigma of
-%   participant over trials 1:n in phase 1
-
-%2  The variance of the alpha and beta priors a participant holds about
-%   their partner
-
-%3  A participant's inferred beliefs about the partner given their
-%   partner's decisions over trials 1:36.
-
-%4  A participant's alpha_mu;alpha_sigma and beta_mu; beta_signa given
-%   their partner's decisions over another 18 trials
 
 %%%%%% DATA STRUCTURE REQUIRED %%%%%%%
 % colnames:
