@@ -19,7 +19,7 @@ library(BayesianFirstAid)
 
 # Load Data ---------------------------------------------------------------
 
-intent_dat <- read.csv('Data/intent_dat.csv')
+intent_dat <- read.csv('Data/intent_dat.csv') %>% dplyr::select(-X)
 
 ## Colours for groups in plots ------------------------------------------------------
 
@@ -292,66 +292,6 @@ t.test(Pc ~ Phase, data=summary_choices_ppts_diff %>% filter(group=='BPD'))
 t.test(Pi ~ Phase, data=summary_choices_ppts_diff %>% filter(group=='BPD'))
 t.test(Ic ~ Phase, data=summary_choices_ppts_diff %>% filter(group=='BPD'))
 
-## Reaction times ----------------------------------------------------------
-
-RT_anal <- intent_dat %>%
-  mutate(group=ifelse(nchar(ID)<10, 'BPD', 'CON'),
-         distancebeta=abs(server_beta_par-server_beta_ppt),
-         distancealpha=abs(server_alpha_par-server_alpha_ppt),
-         across(Gender:CTQtot, ~ifelse(.x==9999, NA, .x)),
-         total_distance = distancebeta+distancealpha,
-         total_distance_q = ifelse(total_distance < 24.75, 'low', 'high'),
-         total_distance_q = factor(total_distance_q, levels = c('low', 'high'), ordered = T)
-         ) %>%
-  distinct()
-
-ggplot(RT_anal %>%
-         filter(RT<10000, Phase ==2),
-       aes(trial, RT, colour= total_distance_q))+
-  #stat_summary(geom='line', alpha = 0.01, aes(group=ID))+
-  stat_summary(geom='line', alpha = 0.2, size=2)+
-  geom_smooth(method='lm', formula = y ~ x + I(x^2))+
-  scale_color_manual(name='Distance', values = c('#9A031E', 'black'))+
-  coord_cartesian(ylim = c(1800, 4500))+
-  stat_cor(label.y = c(4100, 3800), label.x = c(20), size=4, method = 'spearman')+
-  labs(x='Trial',y='RT (ms)')+
-  theme_bw(base_size=18)+
-  theme(legend.position = 'none',
-        panel.grid = element_blank())
-
-#Phase 1
-RT_model4 <- lme4::lmer(RT ~ group + (1|ID), data = RT_anal %>% filter(Phase%in%c(1)))
-summary(RT_model4)
-confint(RT_model4)
-anova(RT_model4)
-
-#Phase 2
-RT_model1a <- lme4::lmer(RT ~ trial +  (1|ID), data = RT_anal %>% filter(Phase==2))
-summary(RT_model1a)
-confint(RT_model1a)
-
-RT_model1b <- lme4::lmer(RT ~ total_distance +(1|ID), data = RT_anal %>% filter(Phase==2))
-summary(RT_model1b)
-confint(RT_model1b)
-
-RT_model1c <- lme4::lmer(RT ~ trial:total_distance + (1|ID), data = RT_anal %>% filter(Phase==2))
-summary(RT_model1c)
-confint(RT_model1c)
-
-RT_model2 <- lme4::lmer(RT ~ trial*group + (1|ID), data = RT_anal %>% filter(Phase==2))
-summary(RT_model2)
-confint(RT_model2)
-
-#Phase 1-3
-RT_model3a <- lme4::lmer(RT ~ Phase + group + (1|ID), data = RT_anal %>% filter(Phase%in%c(1,3)))
-summary(RT_model3a)
-confint(RT_model3a)
-
-RT_model3b <- lme4::lmer(RT ~ group + (1|ID), data = RT_anal %>% filter(Phase%in%c(3)))
-summary(RT_model3b)
-confint(RT_model3b)
-anova(RT_model3b)
-
 # Model based analysis ----------------------------------------------------
 
 ## Simplex ----------
@@ -442,8 +382,8 @@ ggplot(shift_beta_l %>%
 ## Load fitted parameters --------------------------------------------------
 
 #Fitted hierarchical Parameters
-BPD_full      <- readMat('MatlabFiles/hbi_g1_BPD.mat')
-CON_full      <- readMat('MatlabFiles/hbi_g2_BPD.mat')
+BPD_full      <- readMat('FittedModelFiles/hbi_g1_BPD.mat')
+CON_full      <- readMat('FittedModelFiles/hbi_g2_BPD.mat')
 
 #Simulated choices with best fitting model
 BPD_sim       <- readMat('Data_Simulated/data_sim_g1.mat')
@@ -453,13 +393,16 @@ BPD_full_sim  <- readMat('Data_Simulated/full_sim_g1.mat')
 CON_full_sim  <- readMat('Data_Simulated/full_sim_g2.mat')
 
 #Recovered models
-BPD_hbi_recov <- readMat('MatlabFiles/hbi_g1_BPD_recovery.mat')
-CON_hbi_recov <- readMat('MatlabFiles/hbi_g2_BPD_recovery.mat')
+BPD_hbi_recov <- readMat('FittedModelFiles/hbi_g1_BPD_recovery.mat')
+CON_hbi_recov <- readMat('FittedModelFiles/hbi_g2_BPD_recovery.mat')
 
 ## Load & transform individual parameters ----------------------------------------------
 
-BPD_parms <- extract_parameters(BPD_full, ID1$ID)
-CON_parms <- extract_parameters(CON_full, ID2$ID)
+ID1 <- beh_anal[beh_anal$group=='BPD',]$ID
+ID2 <- beh_anal[beh_anal$group=='CON',]$ID
+
+BPD_parms <- extract_parameters(BPD_full, ID1)
+CON_parms <- extract_parameters(CON_full, ID2)
 
 joint_parms <- rbind(BPD_parms, CON_parms) %>%
                plyr::join(., intent_dat %>%
@@ -474,11 +417,11 @@ mod_col <- c('#CCDBDC', '#2BD8FF', '#80CED7', '#020100', '#A81ADB')
 respon <- BPD_full$cbm[,,1]$output[,,1]$responsibility %>%
   as.data.frame()%>%
   dplyr::select(1:5)%>%
-  mutate(ID = as.vector(ID1$ID), group = 'BPD', ID_n = 1:length(ID)) %>%
+  mutate(ID = as.vector(ID1), group = 'BPD', ID_n = 1:length(ID)) %>%
   rbind(.,CON_full$cbm[,,1]$output[,,1]$responsibility %>%
           as.data.frame()%>%
           dplyr::select(1:5)%>%
-          mutate(ID = as.vector(ID2$ID), group = 'CON', ID_n = 1:length(ID))) %>%
+          mutate(ID = as.vector(ID2), group = 'CON', ID_n = 1:length(ID))) %>%
   mutate(ID_n = c(1:50, 1:53)) %>%
   dplyr::rename('M2'=2, 'M3'=4, 'M1'=3, 'M4'=5, 'Beta'=1) %>%
   pivot_longer(1:5, names_to = 'Model', values_to = 'Respon')
@@ -562,11 +505,11 @@ comp_plot
 respon_r <- BPD_hbi_recov$cbm[,,1]$output[,,1]$responsibility %>%
   as.data.frame()%>%
   dplyr::select(1:5)%>%
-  mutate(ID = as.vector(ID1$ID), Group = 'BPD', ID_n = 1:length(ID)) %>%
+  mutate(ID = as.vector(ID1), Group = 'BPD', ID_n = 1:length(ID)) %>%
   rbind(.,CON_hbi_recov$cbm[,,1]$output[,,1]$responsibility %>%
           as.data.frame()%>%
           dplyr::select(1:5)%>%
-          mutate(ID = as.vector(ID2$ID), Group = 'CON', ID_n = 1:length(ID))) %>%
+          mutate(ID = as.vector(ID2), Group = 'CON', ID_n = 1:length(ID))) %>%
   mutate(ID_n = c(1:50, 1:53)) %>%
   rename('M2'=2, 'M3'=4, 'M1'=3, 'M4'=5, 'Beta'=1) %>%
   pivot_longer(1:5, names_to = 'Model', values_to = 'Respon')
@@ -683,7 +626,7 @@ rec_BPD_parms[,9]   <- 'BPD_r'
 rec_CON_parms[,1:6] <- CON_hbi_recov$cbm[,,1]$output[,,1]$parameters[3,][[1]][[1]]
 rec_CON_parms[,7]   <- 'CON_r'
 
-rec_joint_parms <- data.frame(ID      = rbind(ID1, ID2),
+rec_joint_parms <- data.frame(ID      = c(ID1, ID2),
                            rec_alpha   = c((1/(1+exp(-rec_BPD_parms[,1])))*30,
                                            (1/(1+exp(-rec_CON_parms[,1])))*30),
                            rec_beta    = c(rec_BPD_parms[,2],
@@ -810,8 +753,8 @@ LL[,1] <- rbind(BPD_full_sim$F,CON_full_sim$F)
 LL[,2] <- c(extract_and_combine(BPD_full_sim$results, 'lik1', 1), extract_and_combine(CON_full_sim$results, 'lik1', 1))
 LL[,3] <- c(extract_and_combine(BPD_full_sim$results, 'lik2', 1), extract_and_combine(CON_full_sim$results, 'lik2', 1))
 LL[,4] <- c(extract_and_combine(BPD_full_sim$results, 'lik3', 1), extract_and_combine(CON_full_sim$results, 'lik3', 1))
-LL[,5] <- as.matrix(rbind(intent_dat_126 %>% filter(nchar(ID)<10) %>% dplyr::select(ID) %>% unique(),
-                          intent_dat_126 %>% filter(!nchar(ID)<10) %>% dplyr::select(ID) %>% unique()))
+LL[,5] <- as.matrix(rbind(intent_dat %>% filter(nchar(ID)<10) %>% dplyr::select(ID) %>% unique(),
+                          intent_dat %>% filter(!nchar(ID)<10) %>% dplyr::select(ID) %>% unique()))
 LL[,6] <- ifelse(nchar(LL[,5])<10, 'BPD', 'CON')
 
 LL  <- as.data.frame(LL) %>% mutate(across(1:4, as.numeric))
@@ -832,8 +775,8 @@ for (i in 1:nrow(prob1)){
 }
 
 probabilities <- as.data.frame(probabilities)
-names(probabilities)[1:50]  <- ID1$ID
-names(probabilities)[51:103] <- ID2$ID
+names(probabilities)[1:50]  <- ID1
+names(probabilities)[51:103] <- ID2
 
 probabilities <- probabilities %>%
   pivot_longer(1:103, names_to = 'ID', values_to = 'Probs') %>%
@@ -848,7 +791,7 @@ probabilities <- probabilities %>%
 sim_actions      <- BPD_sim$data.sim[,1][[1]][[1]]
 sim_actions      <- as_tibble(sim_actions)
 
-for (i in 2:length(unique(intent_dat_126$ID))){
+for (i in 2:length(unique(intent_dat$ID))){
   if(i %in% 2:50){
   sim_actions         <- rbind(sim_actions, as.data.frame(BPD_sim$data.sim[,i][[1]][[1]]))
   }
@@ -857,12 +800,12 @@ for (i in 2:length(unique(intent_dat_126$ID))){
   }
 }
 
-sim_actions[,1]              <- rbind(intent_dat_126 %>% filter(nchar(ID)<10) %>% dplyr::select(ID),
-                                      intent_dat_126 %>% filter(!nchar(ID)<10) %>% dplyr::select(ID))
+sim_actions[,1]              <- rbind(intent_dat %>% filter(nchar(ID)<10) %>% dplyr::select(ID),
+                                      intent_dat %>% filter(!nchar(ID)<10) %>% dplyr::select(ID))
 names(sim_actions)[c(1:2,7)] <- c('ID', 'trial', 'sim_choice')
 sim_actions <- sim_actions %>% dplyr::select(1,2,7)
 sim_actions <- sim_actions %>% group_by(ID) %>% mutate(trial = 1:126)
-intent_dat_126_check <- intent_dat_126 %>% group_by(ID) %>% mutate(trial = 1:126)
+intent_dat_126_check <- intent_dat %>% group_by(ID) %>% mutate(trial = 1:126)
 
 action_cong <- plyr::join(sim_actions, intent_dat_126_check, by = c('ID', 'trial')) %>%
   mutate(cong = ifelse(sim_choice == choice, 1, 0)) %>%
@@ -945,20 +888,6 @@ Accp1 <- ((ppt_par_congp1 | congall)/congphase) &
         axis.ticks.y = element_blank())
 
 Accp1/(LLall | probp1)
-
-summary(lm(scale(HI)~scale(matched_tot),
-           data = plyr::join(PPT_PARcong, intent_dat_126_check, by = c('ID')) %>%
-             dplyr::select(ID, SI, HI, matched_tot, correctSum) %>%
-             distinct()
-           )
-        )
-
-summary(lm(scale(SI)~scale(matched_tot),
-           data = plyr::join(PPT_PARcong, intent_dat_126_check, by = c('ID')) %>%
-             dplyr::select(ID, SI, HI, matched_tot, correctSum) %>%
-             distinct()
-           )
-        )
 
 #### Check behavioural comparison --------------------------------------------
 sumCbpd <- rep(NA, length(BPD_sim$data.sim))
@@ -1078,7 +1007,7 @@ ggplot(plyr::join(rbind(psych_curves %>%
        dplyr::select(group, corSum) %>%
        distinct() %>%
        rename(Obs=corSum)),
-       data.frame(Model=c(sumCbpd,sumCcon)/54, ID = c(ID1$ID, ID2$ID)),
+       data.frame(Model=c(sumCbpd,sumCcon)/54, ID = c(ID1, ID2)),
        by = 'ID'),
        aes(Obs, Model, fill = group))+
   geom_point(shape=21)+
@@ -1100,12 +1029,38 @@ ggplot(plyr::join(rbind(psych_curves %>%
       plot.title = element_text(hjust = 0.5)
     )
 
+### Compare with choice behaviour -----
+
+choice_beh_corr <- plyr::join(summary_choices_ppts_1 %>% dplyr::select(ID, Ic, Pc, Pi), joint_parms_ex, by = 'ID')
+
+choice_par <- choice_beh_corr %>%
+  ungroup() %>%
+  dplyr::select(Pc, Ic, Pi, beta, alpha) %>%
+  as.data.frame() %>%
+  as.matrix() %>%
+  pcor()
+
+ggcorrplot::ggcorrplot(choice_par$estimate[1:3, 4:5],
+                       p.mat = choice_par$p.value[1:3, 4:5],
+                       lab = T,
+                       sig.level = 0.01,
+                       insig = 'blank'
+                        )
+
+ggplot(choice_beh_corr, aes(Pc, beta))+
+ggplot(choice_beh_corr, aes(Ic, alpha))+
+ggplot(choice_beh_corr, aes(Pi, alpha))+
+ggplot(choice_beh_corr, aes(Ic, beta))&
+  geom_point()&
+  geom_smooth(method = 'lm') &
+  stat_cor()
+
 ## Calculate Belief Distributions -----------------------------------------------------------
 
 lim = 30
 res = 0.25
 
-for (i in 1:length(ID1$ID)){
+for (i in 1:length(ID1)){
   xdist <-   data.frame(
     bP1  = as.vector(BPD_full_sim$results[i,][[1]][[1]][,,1]$beta.marg1),
     bP2a = as.vector(BPD_full_sim$results[i,][[1]][[1]][,,1]$beta.marg2a),
@@ -1117,13 +1072,13 @@ for (i in 1:length(ID1$ID)){
     aP3  = as.vector(BPD_full_sim$results[i,][[1]][[1]][,,1]$alpha.marg3),
     beta = seq(-lim, lim, res),
     alpha = seq(0, lim, res/2),
-    ID = ID1$ID[i],
+    ID = ID1[i],
     group = 'BPD',
     Model = 'M4'
   )
   if(i>1){BPDdist <- rbind(BPDdist, xdist)} else {BPDdist <- xdist}
 }
-for (i in 1:length(ID2$ID)){
+for (i in 1:length(ID2)){
   zdist <-   data.frame(
   bP1   = as.vector(CON_full_sim$results[i,][[1]][[1]][,,1]$beta.marg1),
   bP2a  = as.vector(CON_full_sim$results[i,][[1]][[1]][,,1]$beta.marg2a),
@@ -1135,9 +1090,9 @@ for (i in 1:length(ID2$ID)){
   aP3   = as.vector(CON_full_sim$results[i,][[1]][[1]][,,1]$alpha.marg3),
   beta  = seq(-lim, lim, res),
   alpha = seq(0, lim, res/2),
-  ID = ID2$ID[i],
+  ID = ID2[i],
   group = 'CON',
-  Model = 'M3'
+  Model = 'M1'
   )
   if(i>1){CONdist <- rbind(CONdist, zdist)} else {CONdist <- zdist}
 }
@@ -1146,7 +1101,7 @@ int_dist <- rbind(BPDdist, CONdist)
 
 ## Individual Distribution Examples For Each Model -----------
 
-BPDplotindiv <- ggplot(int_dist %>% filter(ID == 'PDA130', group == 'BPD'))+
+BPDplotindiv <- ggplot(int_dist %>% filter(ID == ID1[2], group == 'BPD'))+
   geom_line(aes(beta, bP1, colour = '1 - P1'), size = 1.2)+
   geom_line(aes(beta, bP2a, colour = '2A - Prior'), size = 1.2)+
   geom_line(aes(beta, bP2b, colour = '2B - Post.'), size = 1.2)+
@@ -1155,7 +1110,7 @@ BPDplotindiv <- ggplot(int_dist %>% filter(ID == 'PDA130', group == 'BPD'))+
   labs(title = '', x = expression(paste(beta)), y = expression(paste('p(',beta,')')))+
   scale_colour_manual(values = c('black','#FBD19D', '#F7941D', 'grey'))+
   theme(legend.position = 'none')
-CONplotindiv <- ggplot(int_dist %>% filter(ID == 'PD061123SJ', group == 'CON'))+
+CONplotindiv <- ggplot(int_dist %>% filter(ID == ID2[17], group == 'CON'))+
   geom_line(aes(beta, bP1, colour = '1 - P1'), size = 1.2)+
   geom_line(aes(beta, bP2a, colour = '2A - Prior'), size = 1.2)+
   geom_line(aes(beta, bP2b, colour = '2B - Post.'), size = 1.2)+
@@ -1200,7 +1155,7 @@ par_parms <- int_dist %>%
                 beta_hat_sd, alpha_hat_sd,
                 shift_beta_p2, shift_alpha_p2) %>%
   distinct() %>%
-  plyr::join(., intent_dat_126 %>%
+  plyr::join(., intent_dat %>%
          dplyr::select(ID, server_beta_par, server_alpha_par)) %>%
   mutate(disp_beta_par = abs(server_beta_par - beta_par_m),
          disp_alpha_par = abs(server_alpha_par - alpha_par_m)) %>%
@@ -1220,6 +1175,7 @@ joint_parms_ex <- plyr::join(par_parms, joint_parms, by = 'ID') %>%
          disp_alpha_hat_sd = abs(alpha_hat_sd - alpha_v),
          distancebeta=abs(server_beta_par-server_beta_ppt),
          distancealpha=abs(server_alpha_par-server_alpha_ppt))
+
 
 ### Partner median priors in BPD ---------------------------------------------------
 
@@ -1410,11 +1366,147 @@ bayes.t.test(x=one_sided_joint$beta_shift_prior, y=NULL)
 bayes.t.test(x=one_sided_joint$alpha_shift_prior, y=NULL)
 bayes.t.test(x=one_sided_joint$beta_par, y=NULL)
 
+## Mean value shift ------
+
+mean_val_shift <- int_dist %>%
+  group_by(ID) %>%
+  mutate(B1  = sum(beta*bP1),
+         B2a = sum(beta*bP2a),
+         B2b = sum(beta*bP2b),
+         B3  = sum(beta*bP3),
+         A1  = sum(alpha*aP1),
+         A2a = sum(alpha*aP2a),
+         A2b = sum(alpha*aP2b),
+         A3  = sum(alpha*aP3)) %>%
+  dplyr::select(ID: A3) %>%
+  distinct()
+
+p1 <- ggplot(mean_val_shift %>%
+               filter(group=='BPD') %>%
+               mutate(BinComp = ifelse(B1 > 0, 'Competitive', 'Prosocial')) %>%
+               pivot_longer(4:5, names_to = 'Phase', values_to = 'MeanBeta'),
+             aes(Phase, MeanBeta, fill = BinComp)) +
+  geom_hline(yintercept = 0, colour = 'grey', linetype = 2) +
+  geom_jitter(aes(colour = BinComp), alpha = 0.1) +
+  stat_summary(geom = 'line', colour = 'black', aes(group = BinComp), size = 1.1) +
+  stat_summary(shape = 21, colour = 'black', size = 1) +
+  coord_cartesian(ylim = c(-25, 20)) +
+  scale_x_discrete(labels = c('Phase 1\nPreferences', 'Phase 2\nPrior'))+
+  scale_fill_brewer(palette = 'Dark2') +
+  scale_colour_brewer(palette = 'Dark2')+
+  labs(x = 'Phase', y = expression(paste(beta^m)))
+
+p2 <- ggplot(mean_val_shift %>%
+               filter(group == 'CON') %>%
+               mutate(BinComp = ifelse(B1 > 0, 'C', 'P'),
+                      BDelta = B3 - B1),
+             aes(BinComp, BDelta, fill = BinComp)) +
+  geom_hline(yintercept = 0, colour = 'black') +
+  geom_jitter(aes(colour = BinComp), alpha = 0.5, width = 0.2) +
+  stat_summary(geom = 'bar', colour = 'black', size = 0.5, alpha = 0.7) +
+  coord_cartesian(ylim = c(-25, 20)) +
+  labs(x = '', y = expression(paste(Delta, beta[ppt]^m, ' [B1-B3]'))) +
+  scale_fill_brewer(palette = 'Dark2') +
+  scale_colour_brewer(palette = 'Dark2')
+
+# Combine the plots side-by-side
+p1 + p2 &
+  theme_bw(base_size = 24) &
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = 'white'),
+        legend.title = element_blank(),
+        legend.position = 'none',
+        axis.title.x = element_blank(),
+        plot.margin = margin(1,1,1,1)) &
+  plot_layout(widths = c(5, 1))
+
+ggplot(mean_val_shift %>%
+               filter(group=='BPD') %>%
+               mutate(BinComp = ifelse(B1 > 0, 'Competitive', 'Prosocial')) %>%
+               pivot_longer(4:5, names_to = 'Phase', values_to = 'MeanBeta'),
+             aes(Phase, MeanBeta, group = ID, colour = MeanBeta)) +
+  geom_hline(yintercept = 0, colour = 'grey', linetype = 2) +
+  geom_line(colour = 'grey', alpha = 0.1)+
+  geom_jitter(width = 0.1)+
+  scale_colour_gradient(low = "#D95F02", high = "#1B9E77")+
+  labs(x = 'Phase', y = expression(paste(beta[ppt]^m)))+
+  theme_bw(base_size = 24) +
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fill = 'white'),
+        legend.title = element_blank(),
+        legend.position = 'none')
+
+mean_val_shift %>%
+  mutate(BinComp = ifelse(B1 > 0, 'Competitive', 'Prosocial')) %>%
+  pivot_longer(B1:B2a, names_to = 'Phase', values_to = 'Mean') %>%
+  filter(BinComp=='Prosocial') %>%
+  dplyr::select(Phase, Mean, BinComp, ID) %>%
+  distinct() %>%
+  glm(Mean ~ Phase, data = .) %>%
+  summary()
+
+mean_val_shift %>%
+  mutate(BinComp = ifelse(B1 > 0, 'Competitive', 'Prosocial')) %>%
+  pivot_longer(B1:B2a, names_to = 'Phase', values_to = 'Mean') %>%
+  filter(BinComp=='Competitive') %>%
+  dplyr::select(Phase, Mean, BinComp, ID) %>%
+  distinct() %>%
+  glm(Mean ~ Phase, data = .) %>%
+  confint()
+
+mean_val_shift %>%
+  pivot_longer(A1:A2a, names_to = 'Phase', values_to = 'Mean') %>%
+  dplyr::select(Phase, Mean, ID) %>%
+  distinct() %>%
+  glm(Mean ~ Phase, data = .) %>%
+  confint()
+
+plot_shift_model_b <- mean_val_shift %>%
+  mutate(B2a = ifelse(Model=='M1', B1, B2a)) %>%
+  pivot_longer(4:7, names_to = 'Phase', values_to = 'Val') %>%
+  filter(Phase%in%c('B1', 'B2a', 'B2b'))
+plot_shift_model_a <- mean_val_shift %>%
+  mutate(A2a = ifelse(Model=='M1', A1, A2a)) %>%
+  pivot_longer(8:11, names_to = 'Phase', values_to = 'Val') %>%
+  filter(Phase%in%c('A1', 'A2a', 'A2b'))
+
+b_shift_p <- ggplot(plot_shift_model_b, aes(Phase, Val, group = group))+
+  #geom_line(aes(group=ID, colour = group), alpha = 0.1)+
+  stat_summary(geom = 'line', colour = 'grey', size = 1)+
+  stat_summary(aes(fill = group, shape = group), colour = 'black', size = 1)+
+  scale_fill_manual(values=colour_group)+
+  scale_colour_manual(values=colour_group)+
+  scale_shape_manual(values = c(21, 22))+
+  scale_x_discrete(expand = c(0,0.05))+
+  labs(y = expression(beta))+
+  theme_bw(base_size = 16)+
+  theme(panel.grid = element_blank(),
+        legend.position = 'none',
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+
+a_shift_p <- ggplot(plot_shift_model_a, aes(Phase, Val, group = group))+
+  #geom_line(aes(group=ID, colour = group), alpha = 0.1)+
+  stat_summary(geom = 'line', colour = 'grey', size = 1)+
+  stat_summary(aes(fill = group, shape = group), colour = 'black', size = 1)+
+  scale_fill_manual(values=colour_group)+
+  scale_colour_manual(values=colour_group)+
+  scale_shape_manual(values = c(21, 22))+
+  scale_x_discrete(expand = c(0,0.05))+
+  labs(y = expression(alpha))+
+  theme_bw(base_size = 16)+
+  theme(panel.grid = element_blank(),
+        legend.position = 'none',
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+
+a_shift_p/b_shift_p
+
 ### Belief Updates In Phase 2 ------------
 
 b_updates <- intent_dat %>%
   filter(Phase==2) %>%
-  dplyr::select(ID, trial, correctSum) %>%
+  dplyr::select(ID, trial, correctSum, RT) %>%
   mutate(group = ifelse(nchar(ID) < 10, 'BPD', 'CON'),
          kl_div_a = 0,
          kl_div_b = 0)
@@ -1426,14 +1518,10 @@ beta_check <- data.frame(
   t2 = as.numeric(BPD_full_sim$results[1,][[1]][[1]][,,1]$beta.cont[,38])
 )
 
-ggplot(beta_check, aes(beta, t1))+
-  geom_line()+
-  geom_line(data = beta_check, aes(beta, t2))
-
 #loops for all
 for(k in 1:2){
-  if(k == 1){x = BPD_full_sim$results; group = 'BPD'; ID = ID1$ID}
-  if(k == 2){x = CON_full_sim$results; group = 'CON'; ID = ID2$ID}
+  if(k == 1){x = BPD_full_sim$results; group = 'BPD'; ID = ID1}
+  if(k == 2){x = CON_full_sim$results; group = 'CON'; ID = ID2}
   for(j in 1:length(ID)){
     kl_divsa = rep(NA, 54)
     kl_divsb = kl_divsa
@@ -1450,8 +1538,8 @@ for(k in 1:2){
       kl_divsa[i]    = calculate_KL_divergence(b_t2a, b_t1a)
       kl_divsb[i]    = calculate_KL_divergence(b_t2b, b_t1b)
     }
-    b_updates[b_updates$group==group & b_updates$ID==ID[j],'kl_div_a'][1:54,] <- kl_divsa
-    b_updates[b_updates$group==group & b_updates$ID==ID[j],'kl_div_b'][1:54,] <- kl_divsb
+    b_updates[b_updates$group==group & b_updates$ID==ID[j],'kl_div_a'][1:54] <- kl_divsa
+    b_updates[b_updates$group==group & b_updates$ID==ID[j],'kl_div_b'][1:54] <- kl_divsb
   }
 }
 
@@ -1463,7 +1551,7 @@ facet_labels <- c('alpha', 'beta')
 names(facet_labels) <- c('kl_div_a', 'kl_div_b')
 ggplot(b_updates %>%
          filter(trial != 1) %>%
-         pivot_longer(5:6, names_to = 'Parameter', values_to = 'KL_Div'),
+         pivot_longer(6:7, names_to = 'Parameter', values_to = 'KL_Div'),
        aes(trial, KL_Div, fill = group, colour = group))+
   geom_smooth(alpha = 0.2)+
   scale_fill_manual(values=colour_group)+
@@ -1481,37 +1569,51 @@ ggplot(b_updates %>%
 summary(lm(scale(kl_div_a) ~ trial*group, data = b_updates %>% filter(trial%in%c(2:54))))
 summary(lm(scale(kl_div_b) ~ trial*group, data = b_updates %>% filter(trial%in%c(2:54))))
 
+summary(lm(scale(kl) ~ trial*type,
+           data = b_updates %>%
+             filter(trial%in%c(2:54)) %>%
+             pivot_longer(kl_div_a:kl_div_b, names_to = 'type', values_to = 'kl')
+           ))
+
 ## Check Model 3 for Self Change Confirmation --------------------------------
 
-BPD_full_sim_M3_d <- readMat('Data_Simulated/full_sim_g1_M3.mat')
-CON_full_sim_M3_d <- readMat('Data_Simulated/full_sim_g2_M3.mat')
+BPD_full_sim_M3_d <- readMat('Data_Simulated/full_sim_g1_M3_only.mat')
+CON_full_sim_M3_d <- readMat('Data_Simulated/full_sim_g2_M3_only.mat')
 
 lim = 30
 res = 0.25
 
-for (i in 1:length(ID1$ID)){
+for (i in 1:length(ID1)){
   xdist <-   data.frame(
     bP1  = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg1),
+    bP2a = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg2a),
+    bP2b = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg2b),
     bP3  = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg3),
     aP1  = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg1),
+    aP2a = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+    aP2b = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg2b),
     aP3  = as.vector(BPD_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg3),
     beta = seq(-lim, lim, res),
     alpha = seq(0, lim, res/2),
-    ID = ID1$ID[i],
+    ID = ID1[i],
     group = 'BPD',
     Model = 'M3'
   )
   if(i>1){BPDdist_M3 <- rbind(BPDdist_M3, xdist)} else {BPDdist_M3 <- xdist}
 }
-for (i in 1:length(ID2$ID)){
+for (i in 1:length(ID2)){
   zdist <-   data.frame(
-  bP1   = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg1),
-  bP3   = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg3),
-  aP1   = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg1),
-  aP3   = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg3),
+    bP1  = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg1),
+    bP2a = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg2a),
+    bP2b = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg2b),
+    bP3  = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$beta.marg3),
+    aP1  = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg1),
+    aP2a = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+    aP2b = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg2b),
+    aP3  = as.vector(CON_full_sim_M3_d$results[i,][[1]][[1]][,,1]$alpha.marg3),
   beta  = seq(-lim, lim, res),
   alpha = seq(0, lim, res/2),
-  ID = ID2$ID[i],
+  ID = ID2[i],
   group = 'CON',
   Model = 'M3'
   )
@@ -1523,12 +1625,18 @@ int_dist_M3 <- rbind(BPDdist_M3, CONdist_M3)
 mean_val_shift_M3 <- int_dist_M3 %>%
   group_by(ID) %>%
   mutate(B1  = sum(beta*bP1),
+         B2a = sum(beta*bP2a),
+         B2b = sum(beta*bP2b),
          B3  = sum(beta*bP3),
          A1  = sum(alpha*aP1),
+         A2a = sum(alpha*aP2a),
+         A2b = sum(alpha*aP2b),
          A3  = sum(alpha*aP3),
-         B1_sd = sqrt(sum((beta-B1)^2 * bP3)),
+         B1_sd = sqrt(sum((beta-B1)^2 * bP1)),
+         B2a_sd= sqrt(sum((beta-B2a)^2 * bP2a)),
          B3_sd = sqrt(sum((beta-B3)^2 * bP3)),
          A1_sd = sqrt(sum((alpha-A1)^2* aP1)),
+         A2a_sd= sqrt(sum((alpha-A2a)^2 *aP2a)),
          A3_sd = sqrt(sum((alpha-A3)^2* aP3)),
          Delta_B    = B3-B1,
          Delta_A    = A3-A1,
@@ -1553,8 +1661,9 @@ ggplot(mean_val_shift_M3 %>% filter(Delta%in%c('Delta_B_sd', 'Delta_A_sd')),
   geom_boxplot(width=0.5, outliers = F, alpha = 0.7)+
   labs(x='', y=expression(paste(Delta, theta['ppt']^sigma)))+
   scale_x_discrete(labels = c(expression(paste(alpha['ppt']^sigma)), expression(paste(beta['ppt']^sigma))))+
+  scale_y_continuous(labels = c(0, -2, -4, -6), breaks = c(0, -2, -4, -6), limits = c(-6, 0))+
   scale_fill_manual(values=colour_group)+
-  stat_compare_means(label = 'p.signif', size = 8, label.y = -15)+
+  stat_compare_means(label = 'p.signif', size = 8, label.y = -6)+
   theme_bw(base_size=22)&
   theme(axis.title.x = element_blank(),
         legend.position = 'none',
@@ -1575,6 +1684,105 @@ confint(lm(abs(Shift) ~ group * Delta, mean_val_shift_M3%>% filter(Delta%in%c('D
 summary(lm(abs(Shift) ~ group * Delta, mean_val_shift_M3%>% filter(Delta%in%c('Delta_B_sd', 'Delta_A_sd'))))
 confint(lm(abs(Shift) ~ group * Delta, mean_val_shift_M3%>% filter(Delta%in%c('Delta_B_sd', 'Delta_A_sd'))))
 
+### Against ideal outcomes --------------------------------------------------
+
+m_shift <- ggplot(shift_beta_l %>%
+                  filter(parameter == 'm_shift'),
+              aes(s_u, o_u, fill = shift))+
+  scale_fill_gradient(high = 'black', low = 'white',
+                      name = expression(paste(Delta, beta[ppt]^mu)),
+                      breaks = c(5, 20, 40))+
+  geom_tile() +
+  geom_point(data = joint_parms_ex %>%
+                 filter(group=='CON_full',
+                        beta_v < 15, beta_ref < 15),
+             aes(x=beta_v, y = beta_ref),
+             shape=21,fill=colour_group[2],size=4, alpha = 0.4)+
+  geom_smooth(data = joint_parms_ex %>%
+                 filter(group=='CON_full',
+                        beta_v < 15, beta_ref < 15),
+             aes(x=beta_v, y = beta_ref),
+             fill = 'grey', formula = y ~ x + I(x^2),
+             method = "lm", se = FALSE, colour = "black") &
+  labs(y = expression(paste('Other Unc.')),
+       x = expression(paste('Self Unc.'))
+       )
+sd_shift <- ggplot(shift_beta_l %>%
+         filter(parameter == 'sd_shift'),
+       aes(s_u, o_u, fill = shift))+
+  scale_fill_gradient(low = 'black', high = 'white',
+                      name = expression(paste(Delta, beta[ppt]^sigma)),
+                      breaks = c(0, -5, -10))+
+  geom_tile() +
+  geom_point(data = joint_parms_ex %>%
+                 filter(group=='CON_full',
+                        beta_v < 15, beta_ref < 15),
+             aes(x=beta_v, y = beta_ref),
+             shape=21,fill=colour_group[2],size=4, alpha = 0.4)+
+  geom_smooth(data = joint_parms_ex %>%
+                 filter(group=='CON_full',
+                        beta_v < 15, beta_ref < 15),
+             aes(x=beta_v, y = beta_ref),
+             fill = 'grey', formula = y ~ x + I(x^2),
+             method = "lm", se = FALSE, colour = "black")
+
+ideal_plot <- (sd_shift|m_shift)&
+  labs(y = expression(paste('Other Unc.')),
+       x = expression(paste('Self Unc.'))
+       ) &
+  scale_y_discrete(breaks = c(0, 5, 10, 15), expand = c(0,0)) &
+  scale_x_discrete(breaks = c(0, 5, 10, 15), expand = c(0,0)) &
+  theme_bw(base_size=18)&
+  theme(legend.position = 'top')
+
+ideal_plot
+
+# Check against model predictions
+
+delta_shift_real <- joint_parms_ex %>%
+  filter(group == 'CON_full',
+         beta_v < 15,
+         beta_ref < 15) %>%
+  mutate(delta_beta_ppt_m = abs(beta - beta_hat),
+         delta_beta_ppt_sd= -abs(beta_v - beta_hat_sd),
+         beta_v = round(beta_v),
+         beta_ref = round(beta_ref)) %>%
+  dplyr::select(delta_beta_ppt_m, delta_beta_ppt_sd, beta_v, beta_ref)
+
+delta_shift_model <- shift_beta_l %>%
+  pivot_wider(id_cols = c(s_u, o_u), names_from = parameter, values_from = shift) %>%
+  rename(beta_v = s_u,
+         beta_ref = o_u,
+         delta_beta_ppt_m = m_shift,
+         delta_beta_ppt_sd = sd_shift) %>%
+  mutate(beta_v = as.numeric(beta_v),
+         beta_ref = as.numeric(beta_ref))
+
+delta_shift <- left_join(delta_shift_real, delta_shift_model,
+                         by = c("beta_v", "beta_ref"),
+                         suffix = c("_real", "_simulated"))
+
+comparison_plot <- ggplot(delta_shift,
+       aes(delta_beta_ppt_sd_real, delta_beta_ppt_sd_simulated)) +
+  geom_point(shape=21, size = 3, fill = 'grey')+
+  geom_smooth(method='lm', colour = 'black')+
+  scale_x_continuous(breaks = c(0, -5, -10))+
+  scale_y_continuous(breaks = c(0, -5, -10))+
+  scale_alpha_continuous(range = c(0.2,1))+
+  theme_bw(base_size=18)+
+ggplot(delta_shift,
+       aes(delta_beta_ppt_m_real, delta_beta_ppt_m_simulated)) +
+  geom_point(shape=21, size= 3, fill = 'grey')+
+  geom_smooth(method='lm', colour = 'black')+
+  scale_x_continuous(breaks = c(0, 5, 10))+
+  scale_y_continuous(breaks = c(0, 25, 50))+
+  theme_bw(base_size=18)&
+  labs(x=expression(paste('Real ',Delta, beta[ppt])),
+       y=expression(paste('Sim. ',Delta, beta[ppt])))&
+  theme(legend.position = 'none')
+
+ideal_plot/comparison_plot
+
 # Correlations ------------------------------------------------------------
 
 ## Atttributions ---------
@@ -1584,7 +1792,7 @@ transformed_data <- joint_parms_ex %>%
   ungroup() %>%
   pivot_longer(cols = c(distancealpha, distancebeta, alpha_ref, beta_ref), names_to = 'Parm', values_to = 'Val1') %>%
   pivot_longer(cols = c(HI, SI), names_to = 'Att', values_to = 'Val2') %>%
-  select(Parm, Att, Val1, Val2, group) %>%
+  dplyr::select(Parm, Att, Val1, Val2, group) %>%
   distinct()
 
 # Initialize a data frame to store the results
@@ -1606,8 +1814,11 @@ for (parm in unique(transformed_data$Parm)) {
     data_subset <- transformed_data %>%
       filter(Parm == parm, Att == att)
 
+    x_val1 <- lm(Val1~group, data_subset)
+    x_val2 <- lm(Val2~group, data_subset)
+
     # Perform the Spearman correlation
-    corr_result <- cor.test(data_subset$Val1, data_subset$Val2, type = "spearman")
+    corr_result <- cor.test(x_val1$residuals, x_val2$residuals, type = "spearman")
 
     # Append the results to the results data frame
     results <- rbind(results, data.frame(Parm = parm,
@@ -1622,6 +1833,9 @@ for (parm in unique(transformed_data$Parm)) {
   }
 }
 
+p.adjust(results$p[1:4], method = 'fdr')
+p.adjust(results$p[5:8], method = 'fdr')
+
 # Create the ggplot2 object
 ggplot(results, aes(x = Att, y = Rho,  colour = sig)) +
   geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper, colour = sig), width = 0.1) +
@@ -1634,12 +1848,13 @@ ggplot(results, aes(x = Att, y = Rho,  colour = sig)) +
     ))+
   scale_colour_manual(values = c('grey','#BA2D0B'),
                       name = '95%CI\nCrosses\nZero')+
-  theme_bw(base_size = 18) +
+  theme_bw(base_size = 24) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank(),
         axis.title.y = element_text(vjust=-1),
         strip.text.x = element_blank(),
-        legend.position = 'none')
+        legend.position = 'none',
+        panel.grid = element_blank())
 
 residual_HI <-  lm(HI ~ shift_beta_p2, data = joint_parms_ex)
 cor.test(joint_parms_ex$beta_ref, residual_HI$residuals, method = 'spearman')
@@ -1647,72 +1862,162 @@ cor.test(joint_parms_ex$distancebeta, residual_HI$residuals, method = 'spearman'
 
 ## Psychometrics ---------
 
-# Transform the data
-transformed_data2 <- joint_parms_ex %>%
-  pivot_longer(cols = c(shift_alpha_p2, shift_beta_p2, alpha_ref, beta_ref), names_to = 'Parm', values_to = 'Val1') %>%
-  pivot_longer(cols = c(CTQtot, RGPTSB, MZQ_TotalScore, CAMSQ_Self, CAMSQ_Other), names_to = 'Att', values_to = 'Val2') %>%
-  select(Parm, Att, Val1, Val2, group) %>%
+supp_8_test <- plyr::join(
+  mean_val_shift_M3,
+  intent_dat %>% dplyr::select(-trial:-correct, -RT, -Phase, -correctSum) %>% distinct(),
+  by = c('ID')
+) %>%
+  filter(Delta %in% c('Delta_B', 'Delta_A')) %>%
+  dplyr::select(ID, group, Model, Delta, Shift, MZQ_TotalScore, CTQtot, RGPTSA, RGPTSB, B1:A3_sd) %>%
+  pivot_wider(id_cols = c(ID, group, MZQ_TotalScore:RGPTSB, B1:A3_sd), names_from = Delta, values_from = Shift) %>%
+  ungroup() %>%
+  mutate(
+    Delta_A = abs(Delta_A),
+    Delta_B = abs(Delta_B)
+  ) %>%
   distinct()
 
-# Initialize a data frame to store the results
-results2 <- data.frame(
-  Parm = character(),
-  Att = character(),
-  Rho = numeric(),
-  CI_Lower = numeric(),
-  CI_Upper = numeric(),
-  sig=numeric(),
-  p=numeric(),
-  stringsAsFactors = FALSE
-)
+network_pcor <- estimateNetwork(
+                         as.matrix(supp_8_test %>%
+                            ungroup() %>%
+                            dplyr::select(MZQ_TotalScore, CTQtot, RGPTSB, Delta_A, Delta_B, -ID)
+                          ),
+                default = 'pcor', checkNumeric = T)
 
-# Loop through each combination of Parm and Att to perform Spearman correlations
-for (parm in unique(transformed_data2$Parm)) {
-  for (att in unique(transformed_data2$Att)) {
-    # Filter data for the current Parm and Att
-    data_subset2 <- transformed_data2 %>%
-      filter(Parm == parm, Att == att)
+network_pcor$results
+plot(network_pcor)
+boot_pcor <- bootnet(network_pcor, nBoots = 5000)
+summary(boot_pcor) %>% filter((CIlower < 0 & CIupper < 0) | (CIlower>0&CIupper>0))
 
-    y                 <- lm(data_subset2$Val1~joint_parms_ex$distancealpha+joint_parms_ex$distancebeta)
-    data_subset2$Val1 <- y$residuals
+### Permutation test ----
+perms <- 5000
+perm_graph <- list()
 
-    # Perform the Spearman correlation
-    corr_result2 <- cor.test(data_subset2$Val1, data_subset2$Val2, type = "spearman")
+for(i in 1:perms){
+network_pcor_perm <- estimateNetwork(
+                          as.matrix(supp_8_test %>%
+                            ungroup() %>%
+                            dplyr::select(MZQ_TotalScore, CTQtot, RGPTSB, Delta_A, Delta_B, -ID)
+                            ) %>%
+                            apply(., 2, sample),
+                  default = 'pcor', checkNumeric = T)
 
-    # Append the results to the results data frame
-    results2 <- rbind(results2, data.frame(Parm = parm,
-                                            Att = att,
-                                            Rho = as.numeric(corr_result2$estimate),
-                                            CI_Lower = corr_result2$conf.int[1],
-                                            CI_Upper = corr_result2$conf.int[2],
-                                            sig = ifelse((corr_result2$conf.int[1] < 0 & corr_result2$conf.int[2] < 0) |
-                                                         (corr_result2$conf.int[1] > 0 & corr_result2$conf.int[2] > 0),
-                                                       'Yes', 'No'),
-                                            p=corr_result2$p.value))
+perm_graph[[i]] <- network_pcor_perm$graph %>%
+  as.data.frame() %>%
+  mutate(cross_c = as.vector(rownames(network_pcor_perm$graph)),
+         perm = i)
+
+}
+
+# Initialize a matrix to store p-values
+p_value_matrix <- matrix(NA, nrow = 5, ncol = 5)
+plot_data <- list()
+
+# Calculate p-values for each cell
+for (i in 1:5) {
+  for (j in 1:5) {
+    # Extract the distribution of the cell (i, j) from permuted matrices
+    permuted_values <- sapply(perm_graph, function(mat) mat[i, j])
+
+    # Two-tailed p-value: proportion of permuted values more extreme than the true value
+    true_value <- network_pcor$graph[i, j]
+    if(true_value!=0){
+    p_value_matrix[i, j] <- mean(abs(permuted_values - mean(permuted_values)) >= abs(true_value - mean(permuted_values)))
+    plot_data[[paste(rownames(network_pcor$graph)[i],colnames(network_pcor$graph)[j], sep = "_")]] <- data.frame(
+      Cell = paste(rownames(network_pcor$graph)[i],colnames(network_pcor$graph)[j], sep = ""),
+      Permuted = permuted_values,
+      TrueValue = true_value
+      )
+    }
   }
 }
 
-# Create the ggplot2 object
-ggplot(results2 %>%
-         filter(Att %in% c('CTQtot', 'RGPTSB')),
-       aes(x = Att, y = Rho,  colour = sig)) +
-  geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper, colour = sig), width = 0.1) +
-  geom_point(size=3) +
-  geom_hline(yintercept = 0)+
-  labs(y = expression(paste(rho, ' ± 95% CI'))) +
-  facet_wrap(~Parm, scales = 'free_x', nrow=1)+
-  scale_x_discrete(labels = c(
-   'CTQ',
-   'R-GPTSB'
-    ))+
-  scale_colour_manual(values = c('grey','#BA2D0B'),
-                      name = '95%CI\nCrosses\nZero')+
-  theme_bw(base_size = 18) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank(),
-        axis.title.y = element_text(vjust=-1),
-        strip.text.x = element_blank(),
-        legend.position = 'none')
+colnames(p_value_matrix) <- colnames(network_pcor$graph)
+rownames(p_value_matrix) <- rownames(network_pcor$graph)
+p_value_matrix
+
+# Combine all cell data into a single data frame
+plot_data_df <- bind_rows(plot_data, .id = "Cell")
+
+# Plot the distributions with ggplot2
+ggplot(plot_data_df, aes(x = Permuted)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+  geom_vline(aes(xintercept = TrueValue), color = "red", linetype = "dashed") +
+  facet_wrap(~ Cell, scales = "free") +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Permuted Distributions with True Values",
+    x = "Value",
+    y = "Frequency"
+  )
+
+### Plot surviving edges -----
+
+#plot actual outcomes:
+network_pcor_a <- network_pcor
+
+for (i in 1:5) {
+  for (j in 1:5) {
+    if(is.na(p_value_matrix[i,j]) | p_value_matrix[i,j] > 0.05){
+    network_pcor_a$graph[i,j] <- 0
+    }
+  }
+}
+
+library(qgraph)
+qgraph(
+  network_pcor_a$graph,
+  layout = 'spring',
+  labels = c('MZQ', 'CTQ', 'RGPTS',
+             expression(paste(Delta, alpha)),
+             expression(paste(Delta,beta))
+             ),
+  label.cex = 1,
+  vsize = 10,
+  color = c(rep('black', 3), rep('white', 2)),
+  posCol = 'blue',
+  edge.labels = T,
+  edge.label.bg = T,
+  edge.label.margin = 0.01,
+  edge.label.cex = 2,
+  repulsion = 1.1
+               )
+
+### Control for group status ------------------------------------------------
+
+supp_8_group <- plyr::join(
+  mean_val_shift_M3,
+  intent_dat %>% dplyr::select(-trial:-correct, -RT, -Phase, -correctSum) %>% distinct(),
+  by = c('ID')
+) %>%
+  filter(Delta %in% c('Delta_B', 'Delta_A')) %>%
+  dplyr::select(ID, group, Model, Delta, Shift, MZQ_TotalScore, CTQtot, RGPTSA, RGPTSB, B1:A3_sd) %>%
+  pivot_wider(id_cols = c(ID, group, MZQ_TotalScore:RGPTSB, B1:A3_sd), names_from = Delta, values_from = Shift) %>%
+  ungroup() %>%
+  mutate(
+    Delta_A = abs(Delta_A),
+    Delta_B = abs(Delta_B)
+  ) %>%
+  distinct() %>%
+
+  ## Regress each specified variable against group and take residuals
+  mutate(
+    MZQ_TotalScore   = resid(lm(MZQ_TotalScore ~ group, na.action = na.exclude)),
+    CTQtot = resid(lm(CTQtot ~ group, na.action = na.exclude)),
+    RGPTSB = resid(lm(RGPTSB ~ group, na.action = na.exclude))
+  )
+
+network_pcor_group <- estimateNetwork(
+                         as.matrix(supp_8_group %>%
+                            ungroup() %>%
+                            dplyr::select(MZQ_TotalScore, CTQtot, RGPTSB, Delta_A, Delta_B, -ID)
+                          ),
+                default = 'pcor', checkNumeric = T)
+
+network_pcor_group$results
+plot(network_pcor_group)
+boot_pcor_group <- bootnet(network_pcor_group, nBoots = 5000)
+summary(boot_pcor_group) %>% filter((CIlower < 0 & CIupper < 0) | (CIlower>0&CIupper>0))
 
 # Supplementary Figure 1 --------------------------------------------------
 
@@ -1889,7 +2194,6 @@ ggplot(int_dist %>% filter(ID %in% joint_parms_ex[joint_parms_ex$beta>1,]$ID[6],
         plot.title = element_text(hjust = 0.5),
         text=element_text(size=16))
 
-
 # Supplementary Figure 5 --------------------------------------------------
 
 t.test(sumCbpd, sumCcon)
@@ -1929,13 +2233,13 @@ predCor%>%
 
 # Supplementary Figure 6 --------------------------------------------------
 
-parm_vals <- intent_dat %>%
+parm_vals <- intent_dat_126 %>%
   dplyr::select(ID, server_alpha_ppt, server_alpha_par) %>%
   distinct() %>%
   pivot_longer(c(server_alpha_ppt, server_alpha_par), names_to = 'player', values_to = 'alpha_val') %>%
   mutate(player = ifelse(player == 'server_alpha_ppt', 'PPT', 'PAR')) %>%
   plyr::join(.,
-        intent_dat %>%
+        intent_dat_126 %>%
   dplyr::select(ID, server_beta_ppt, server_beta_par) %>%
   distinct() %>%
   pivot_longer(c(server_beta_ppt, server_beta_par), names_to = 'player', values_to = 'beta_val') %>%
@@ -1977,7 +2281,7 @@ real_cor_parms_metric  <- rcorr(as.matrix(joint_parms_ex[,
                                                    c('MZQ_TotalScore' ,
                                                      'CAMSQ_Self', 'CAMSQ_Other',
                                                      'RGPTSA', 'RGPTSB', 'CTQtot',
-                                                     'A_ETS_Mistrust', 'A_ETS_Trust', 'A_ETS_Credulity',
+                                                     #'A_ETS_Mistrust', 'A_ETS_Trust', 'A_ETS_Credulity',
                                                      'alpha', 'beta', 'alpha_v', 'beta_v', 'alpha_ref', 'beta_ref', 'shift_alpha_p2', 'shift_beta_p2'
                                                      )]
                                    ), type = 'spearman')
@@ -2080,3 +2384,1076 @@ ggcorrplot::ggcorrplot(real_cor_parms_metric$r[c(1:9, 14:17), c(1:9, 14:17)],
         panel.grid = element_blank(),
         axis.text.x = element_text(angle=45))
 
+
+# Supplementary Figure 8 --------------------------------------------------
+
+# Transform the data
+transformed_data2 <- joint_parms_ex %>%
+  ungroup() %>%
+  mutate(
+    CTQtot         = resid(lm(CTQtot ~ group, na.action = na.exclude)),
+    RGPTSB         = resid(lm(RGPTSB ~ group, na.action = na.exclude)),
+    MZQ_TotalScore = resid(lm(MZQ_TotalScore ~ group, na.action = na.exclude)),
+    CAMSQ_Self     = resid(lm(CAMSQ_Self ~ group, na.action = na.exclude)),
+    CAMSQ_Other    = resid(lm(CAMSQ_Other ~ group, na.action = na.exclude))
+  ) %>%
+  pivot_longer(cols = c(shift_alpha_p2, shift_beta_p2, alpha_ref, beta_ref), names_to = 'Parm', values_to = 'Val1') %>%
+  pivot_longer(cols = c(CTQtot, RGPTSB, MZQ_TotalScore, CAMSQ_Self, CAMSQ_Other), names_to = 'Att', values_to = 'Val2') %>%
+  dplyr::select(Parm, Att, Val1, Val2, group) %>%
+  distinct()
+
+# Initialize a data frame to store the results
+results2 <- data.frame(
+  Parm = character(),
+  Att = character(),
+  Rho = numeric(),
+  CI_Lower = numeric(),
+  CI_Upper = numeric(),
+  sig=numeric(),
+  p=numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each combination of Parm and Att to perform Spearman correlations
+for (parm in unique(transformed_data2$Parm)) {
+  for (att in unique(transformed_data2$Att)) {
+    # Filter data for the current Parm and Att
+    data_subset2 <- transformed_data2 %>%
+      filter(Parm == parm, Att == att)
+
+    y                 <- lm(data_subset2$Val1~joint_parms_ex$distancealpha+joint_parms_ex$distancebeta)
+    data_subset2$Val1 <- y$residuals
+
+    # Perform the Spearman correlation
+    corr_result2 <- cor.test(data_subset2$Val1, data_subset2$Val2, type = "spearman")
+
+    # Append the results to the results data frame
+    results2 <- rbind(results2, data.frame(Parm = parm,
+                                            Att = att,
+                                            Rho = as.numeric(corr_result2$estimate),
+                                            CI_Lower = corr_result2$conf.int[1],
+                                            CI_Upper = corr_result2$conf.int[2],
+                                            sig = ifelse((corr_result2$conf.int[1] < 0 & corr_result2$conf.int[2] < 0) |
+                                                         (corr_result2$conf.int[1] > 0 & corr_result2$conf.int[2] > 0),
+                                                       'Yes', 'No'),
+                                            p=corr_result2$p.value))
+  }
+}
+
+# Create the ggplot2 object
+ggplot(results2 %>%
+         filter(Att %in% c('CTQtot', 'RGPTSB')),
+       aes(x = Att, y = Rho,  colour = sig)) +
+  geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper, colour = sig), width = 0.1) +
+  geom_point(size=3) +
+  geom_hline(yintercept = 0)+
+  labs(y = expression(paste(rho, ' ± 95% CI'))) +
+  facet_wrap(~Parm, scales = 'free_x', nrow=1)+
+  scale_x_discrete(labels = c(
+   'CTQ',
+   'R-GPTSB'
+    ))+
+  scale_colour_manual(values = c('grey','#BA2D0B'),
+                      name = '95%CI\nCrosses\nZero')+
+  theme_bw(base_size = 18) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(vjust=-1),
+        strip.text.x = element_blank(),
+        legend.position = 'none')
+
+# Supplementary Figure 9 --------------------------------------------------
+
+RT_anal <- intent_dat %>%
+  mutate(group=ifelse(nchar(ID)<10, 'BPD', 'CON'),
+         distancebeta=abs(server_beta_par-server_beta_ppt),
+         distancealpha=abs(server_alpha_par-server_alpha_ppt),
+         across(Gender:CTQtot, ~ifelse(.x==9999, NA, .x)),
+         total_distance = distancebeta+distancealpha,
+         total_distance_q = ifelse(total_distance < 24.75, 'low', 'high'),
+         total_distance_q = factor(total_distance_q, levels = c('low', 'high'), ordered = T)
+         ) %>%
+  distinct()
+
+ggplot(RT_anal %>%
+         filter(RT<10000, Phase ==2),
+       aes(trial, RT, colour= total_distance_q))+
+  #stat_summary(geom='line', alpha = 0.01, aes(group=ID))+
+  stat_summary(geom='line', alpha = 0.2, size=2)+
+  geom_smooth(method='lm', formula = y ~ x + I(x^2))+
+  scale_color_manual(name='Distance', values = c('#9A031E', 'black'))+
+  coord_cartesian(ylim = c(1800, 4500))+
+  stat_cor(label.y = c(4100, 3800), label.x = c(20), size=4, method = 'spearman')+
+  labs(x='Trial',y='RT (ms)')+
+  theme_bw(base_size=18)+
+  theme(legend.position = 'none',
+        panel.grid = element_blank())
+
+#Phase 1
+RT_model4 <- lme4::lmer(RT ~ group + (1|ID), data = RT_anal %>% filter(Phase%in%c(1)))
+summary(RT_model4)
+confint(RT_model4)
+anova(RT_model4)
+
+#Phase 2
+RT_model1a <- lme4::lmer(RT ~ trial +  (1|ID), data = RT_anal %>% filter(Phase==2))
+summary(RT_model1a)
+confint(RT_model1a)
+
+RT_model1b <- lme4::lmer(RT ~ total_distance +(1|ID), data = RT_anal %>% filter(Phase==2))
+summary(RT_model1b)
+confint(RT_model1b)
+
+RT_model1c <- lme4::lmer(RT ~ trial:total_distance + (1|ID), data = RT_anal %>% filter(Phase==2))
+summary(RT_model1c)
+confint(RT_model1c)
+
+RT_model2 <- lme4::lmer(RT ~ trial*group + (1|ID), data = RT_anal %>% filter(Phase==2))
+summary(RT_model2)
+confint(RT_model2)
+
+#Phase 1-3
+RT_model3a <- lme4::lmer(RT ~ Phase + group + (1|ID), data = RT_anal %>% filter(Phase%in%c(1,3)))
+summary(RT_model3a)
+confint(RT_model3a)
+
+RT_model3b <- lme4::lmer(RT ~ group + (1|ID), data = RT_anal %>% filter(Phase%in%c(3)))
+summary(RT_model3b)
+confint(RT_model3b)
+anova(RT_model3b)
+
+# Supplementary Figure 10 --------------------------------------------------
+
+library(rstanarm)
+library(bayesplot)
+
+## Load M1 only ----
+
+M1_full <- readMat('FittedModelFiles/hbi_full_M1.mat')
+M1_BPD  <- readMat('FittedModelFiles/hbi_g1_BPD_M1.mat')
+M1_CON  <- readMat('FittedModelFiles/hbi_g2_BPD_M1.mat')
+
+M1_BPD_sim  <- readMat('Data_Simulated/full_sim_g1_M1_only.mat')
+M1_CON_sim  <- readMat('Data_Simulated/full_sim_g2_M1_only.mat')
+
+M1_intent <- read_csv("Data/formatlab_BPD_allsamp.csv") %>%
+  dplyr::select(-`...1`)
+
+par_full <- as.data.frame(M1_full$cbm[,,1]$output[,,1]$parameters[1,])
+colnames(par_full) <- c('alpha', 'beta', 'alpha_v', 'beta_v', 'alpha_ref', 'beta_ref')
+par_full <- par_full %>%
+  mutate(ID = unique(intent_dat_126$ID),
+         type = 'full')
+
+par_sep  <- rbind(as.data.frame(M1_BPD$cbm[,,1]$output[,,1]$parameters[1,]),
+                  as.data.frame(M1_CON$cbm[,,1]$output[,,1]$parameters[1,]))
+colnames(par_sep) <- c('alpha', 'beta', 'alpha_v', 'beta_v', 'alpha_ref', 'beta_ref')
+par_sep <- par_sep %>%
+  mutate(ID = c(ID1$ID, ID2$ID),
+         type = 'sep')
+
+M1_w_ID <- rbind(par_full,par_sep) %>%
+           mutate(group = ifelse(nchar(ID)<10, 'BPD', 'CON'))
+
+ggplot(M1_w_ID, aes(beta_ref, fill = group))+
+  geom_density()+
+  facet_wrap(~type)
+
+# Process and summarize data
+test_parms_m1 <- M1_w_ID %>%
+  filter(type == 'sep') %>%
+  mutate(across(alpha_v:beta_ref, ~ exp(.)),
+         alpha = (1 / (1 + exp(-alpha))) * 30)
+
+test_parms_m1 %>%
+  group_by(group) %>%
+  summarise(
+    across(alpha:beta_ref,
+           list(mean = ~ mean(.), sd = ~ sd(.)),
+           .names = "{.col}_{.fn}")
+  ) %>%
+  as.data.frame()
+
+summary(stan_glm(alpha_v ~ group, data = test_parms_m1 ))
+
+## Belief Distributions ------
+
+lim = 30
+res = 0.25
+
+for (i in 1:length(ID1$ID)){
+  xdist <-   data.frame(
+    bP1  = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$beta.marg1),
+    bP2a = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$beta.marg2a),
+    bP2b = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$beta.marg2b),
+    bP3  = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$beta.marg3),
+    aP1  = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$alpha.marg1),
+    aP2a = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+    aP2b = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$alpha.marg2b),
+    aP3  = as.vector(M1_BPD_sim$results[i,][[1]][[1]][,,1]$alpha.marg3),
+    beta = seq(-lim, lim, res),
+    alpha = seq(0, lim, res/2),
+    ID = ID1$ID[i],
+    group = 'BPD',
+    Model = 'M1'
+  )
+  if(i>1){BPDdist <- rbind(BPDdist, xdist)} else {BPDdist <- xdist}
+}
+for (i in 1:length(ID2$ID)){
+  zdist <-   data.frame(
+  bP1   = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$beta.marg1),
+  bP2a  = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$beta.marg2a),
+  bP2b  = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$beta.marg2b),
+  bP3   = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$beta.marg3),
+  aP1   = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$alpha.marg1),
+  aP2a  = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+  aP2b  = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$alpha.marg2b),
+  aP3   = as.vector(M1_CON_sim$results[i,][[1]][[1]][,,1]$alpha.marg3),
+  beta  = seq(-lim, lim, res),
+  alpha = seq(0, lim, res/2),
+  ID = ID2$ID[i],
+  group = 'CON',
+  Model = 'M1'
+  )
+  if(i>1){CONdist <- rbind(CONdist, zdist)} else {CONdist <- zdist}
+}
+
+int_dist_m1 <- rbind(BPDdist, CONdist)
+
+par_parms_m1 <- int_dist_m1 %>%
+  group_by(ID) %>%
+  mutate(beta_par_m = sum(beta*bP2b),
+         alpha_par_m = sum(alpha*aP2b),
+         beta_par_pri = sum(beta*bP2a),
+         alpha_par_pri = sum(alpha*aP2a),
+         B1_sd = sqrt(sum((beta-bP1)^2 * bP1)),
+         B2a_sd= sqrt(sum((beta-bP2a)^2 * bP2a)),
+         B2b_sd= sqrt(sum((beta-bP2b)^2 * bP2b)),
+         B3_sd = sqrt(sum((beta-bP3)^2 * bP3)),
+         A1_sd = sqrt(sum((alpha-aP1)^2* aP1)),
+         A2a_sd= sqrt(sum((alpha-aP2a)^2 *aP2a)),
+         A2b_sd= sqrt(sum((alpha-aP2b)^2 * aP2b)),
+         A3_sd = sqrt(sum((alpha-aP3)^2* aP3)),
+         shift_beta_p2 = abs(beta_par_pri-beta_par_m),
+         shift_alpha_p2 = abs(alpha_par_pri-alpha_par_m),
+         beta_hat = sum(beta*bP3),
+         alpha_hat= sum(alpha*aP3),
+         beta_hat_sd = sqrt(sum((beta-beta_hat)^2 * bP3)),
+         alpha_hat_sd = sqrt(sum((alpha-alpha_hat)^2 * aP3))) %>%
+  dplyr::select(ID, group,
+                beta_par_m, alpha_par_m,
+                beta_par_pri, alpha_par_pri,
+                beta_hat, alpha_hat,
+                beta_hat_sd, alpha_hat_sd,
+                shift_beta_p2, shift_alpha_p2,
+                B2a_sd, B2b_sd, A2a_sd, A2b_sd) %>%
+  distinct() %>%
+  plyr::join(., intent_dat_126 %>%
+         dplyr::select(ID, server_beta_par, server_alpha_par)) %>%
+  mutate(disp_beta_par = abs(server_beta_par - beta_par_m),
+         disp_alpha_par = abs(server_alpha_par - alpha_par_m)) %>%
+  dplyr::select(ID,
+                beta_par_m, alpha_par_m,
+                beta_par_pri, alpha_par_pri,
+                disp_beta_par, disp_alpha_par,
+                beta_hat_sd, alpha_hat_sd,
+                beta_hat, alpha_hat,
+                shift_beta_p2, shift_alpha_p2,
+                B2a_sd, B2b_sd, A2a_sd, A2b_sd) %>%
+  distinct()
+
+M1_only_parameters <- plyr::join(
+  M1_w_ID %>% filter(type =='sep'),
+  par_parms_m1,
+  by = 'ID'
+  )
+
+## Mean val shift -----
+
+mean_val_shift_m1 <- int_dist_m1 %>%
+  group_by(ID) %>%
+  mutate(B1  = sum(beta*bP1),
+         B2a = sum(beta*bP2a),
+         B2b = sum(beta*bP2b),
+         B3  = sum(beta*bP3),
+         A1  = sum(alpha*aP1),
+         A2a = sum(alpha*aP2a),
+         A2b = sum(alpha*aP2b),
+         A3  = sum(alpha*aP3),
+         B1_sd = sqrt(sum((beta-bP1)^2 * bP1)),
+         B2a_sd= sqrt(sum((beta-bP2a)^2 * bP2a)),
+         B2b_sd= sqrt(sum((beta-bP2b)^2 * bP2b)),
+         B3_sd = sqrt(sum((beta-bP3)^2 * bP3)),
+         A1_sd = sqrt(sum((alpha-aP1)^2* aP1)),
+         A2a_sd= sqrt(sum((alpha-aP2a)^2 *aP2a)),
+         A2b_sd= sqrt(sum((alpha-aP2b)^2 * aP2b)),
+         A3_sd = sqrt(sum((alpha-aP3)^2* aP3)),
+         delta_b = abs(B3-B1),
+         delta_a = abs(A3-A1),
+         delta_b_sd = abs(B3_sd-B1_sd),
+         delta_a_sd = abs(A3_sd-A1_sd)) %>%
+  dplyr::select(ID: delta_a %>%
+  distinct()
+
+sd(mean_val_shift_m1[mean_val_shift_m1$group=='CON',]$delta_b_sd)
+
+summary(stan_glm(delta_b~group, data = mean_val_shift_m1))
+summary(stan_glm(delta_a~group, data = mean_val_shift_m1))
+summary(stan_glm(delta_b_sd~group, data = mean_val_shift_m1))
+summary(stan_glm(delta_a_sd~group, data = mean_val_shift_m1))
+
+## Value shift M4$2a - M4$2b, M1$ref ---------------------------------------------
+
+beta_cor_test <- mean_val_shift %>%
+  filter(group=='BPD') %>%
+  ungroup() %>%
+  plyr::join(.,
+             M1_only_parameters %>%
+               dplyr::select(ID, beta_ref, alpha_ref),
+             by = 'ID')
+
+cor.test(exp(beta_cor_test$beta_ref), abs(beta_cor_test$B1-beta_cor_test$B2a))
+cor.test(exp(beta_cor_test$alpha_ref), abs(beta_cor_test$A1-beta_cor_test$A2a))
+
+## Replicate Phase 2 analysis -----------
+
+# Process and summarize data
+M1_only_parameters %>%
+  filter(type == 'sep') %>%
+  group_by(group) %>%
+  summarise(
+    across(c(shift_beta_p2, shift_alpha_p2,A2b_sd, B2b_sd),
+           list(mean = ~ mean(.), sd = ~ sd(.)),
+           .names = "{.col}_{.fn}")
+  ) %>%
+  as.data.frame()
+
+summary(stan_glm(shift_beta_p2 ~ group, M1_only_parameters, family = gaussian()))
+summary(stan_glm(shift_alpha_p2 ~ group, M1_only_parameters, family = gaussian()))
+
+summary(stan_glm(B2b_sd ~ group, M1_only_parameters, family = gaussian()))
+summary(stan_glm(A2b_sd ~ group, M1_only_parameters, family = gaussian()))
+
+## Belief Updates In Phase 2 ------------
+
+b_updates_m1 <- intent_dat_126 %>%
+  filter(Phase==2) %>%
+  dplyr::select(ID, trial, correctSum) %>%
+  mutate(group = ifelse(nchar(ID) < 10, 'BPD', 'CON'),
+         kl_div_a = 0,
+         kl_div_b = 0)
+
+#sanity check for kl divs
+beta_check_m1 <- data.frame(
+  beta = seq(-30, 30, 0.25),
+  t1 = as.numeric(M1_BPD_sim$results[5,][[1]][[1]][,,1]$beta.marg1),
+  t2 = as.numeric(M1_BPD_sim$results[5,][[1]][[1]][,,1]$beta.cont[,38])
+)
+
+ggplot(beta_check_m1, aes(beta, t1))+
+  geom_line(colour = 'red')+
+  geom_line(data = beta_check_m1, aes(beta, t2))
+
+#loops for all
+for(k in 1:2){
+  if(k == 1){x = M1_BPD_sim$results; group = 'BPD'; ID = ID1$ID}
+  if(k == 2){x = M1_CON_sim$results; group = 'CON'; ID = ID2$ID}
+  for(j in 1:length(ID)){
+    kl_divsa = rep(NA, 54)
+    kl_divsb = kl_divsa
+    for(i in 1:54){
+      x[j,][[1]][[1]][,,1]$alpha.cont[,36] = x[j,][[1]][[1]][,,1]$alpha.marg1
+      x[j,][[1]][[1]][,,1]$beta.cont[,36]  = x[j,][[1]][[1]][,,1]$beta.marg1
+
+      bsa            = x[j,][[1]][[1]][,,1]$alpha.cont[,36:90]
+      b_t2a          = bsa[,i+1]
+      b_t1a          = bsa[,i]
+      bsb            = x[j,][[1]][[1]][,,1]$beta.cont[,36:90]
+      b_t2b          = bsb[,i+1]
+      b_t1b          = bsb[,i]
+      kl_divsa[i]    = calculate_KL_divergence(b_t2a, b_t1a)
+      kl_divsb[i]    = calculate_KL_divergence(b_t2b, b_t1b)
+    }
+    b_updates_m1[b_updates_m1$group==group & b_updates_m1$ID==ID[j],'kl_div_a'][1:54,] <- kl_divsa
+    b_updates_m1[b_updates_m1$group==group & b_updates_m1$ID==ID[j],'kl_div_b'][1:54,] <- kl_divsb
+  }
+}
+
+b_updates_m1 <- b_updates_m1 %>%
+  mutate(kl_div_aroll = rollapply(kl_div_a, width = 5, FUN = mean, align = "right", fill = NA),
+         kl_div_broll = rollapply(kl_div_b, width = 5, FUN = mean, align = "right", fill = NA))
+
+facet_labels <- c('alpha', 'beta')
+names(facet_labels) <- c('kl_div_a', 'kl_div_b')
+ggplot(b_updates_m1 %>%
+         filter(trial != 1) %>%
+         pivot_longer(5:6, names_to = 'Parameter', values_to = 'KL_Div'),
+       aes(trial, KL_Div, fill = group, colour = group))+
+  geom_smooth(alpha = 0.2)+
+  scale_fill_manual(values=colour_group)+
+  scale_colour_manual(values=colour_group)+
+  scale_x_continuous(breaks = c(2, 25, 50))+
+  facet_wrap(~Parameter, nrow=2) +
+  labs(y = expression(paste('D'[KL])), x = 'Trial')+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size=18),
+        legend.position = 'none',
+        legend.title = element_blank(),
+        strip.text.x = element_blank())
+
+summary(lmerTest::lmer(scale(kl_div_a) ~ trial*group+(1|ID), data = b_updates_m1 %>% filter(trial%in%c(2:54))))
+summary(lmerTest::lmer(scale(kl_div_b) ~ trial*group+(1|ID), data = b_updates_m1 %>% filter(trial%in%c(2:54))))
+
+summary(stan_glm(scale(kl) ~ trial*type,
+           data = b_updates_m1 %>%
+             filter(trial%in%c(2:54)) %>%
+             pivot_longer(kl_div_a:kl_div_b, names_to = 'type', values_to = 'kl')
+           ))
+
+## Groups fitted together ----
+
+sanity_beta_ref_tog <- stan_glm(exp(beta_ref) ~ group,
+                                M1_w_ID %>% filter(type == 'full'),
+                                family = gaussian())
+
+summary(sanity_beta_ref_tog)
+sanity_beta_post_tog <- as.matrix(sanity_beta_ref_tog) %>%
+  as.data.frame() %>%
+  mutate(type = 'FULL')
+
+sanity_alpha_ref_tog <- stan_glm(exp(alpha_ref) ~ group,
+                                M1_w_ID %>% filter(type == 'full'),
+                                family = gaussian())
+
+summary(sanity_alpha_ref_tog)
+sanity_alpha_post_tog <- as.matrix(sanity_alpha_ref_tog) %>%
+  as.data.frame() %>%
+  mutate(type = 'FULL')
+
+## Groups fitted seperately ----
+
+sanity_beta_ref_sep <- stan_glm(exp(beta_ref) ~ group,
+                                M1_w_ID %>% filter(type =='sep'),
+                                family = gaussian())
+
+summary(sanity_beta_ref_sep)
+sanity_beta_post_sep  <- as.matrix(sanity_beta_ref_sep)%>%
+  as.data.frame() %>%
+  mutate(type = 'SEP')
+
+sanity_alpha_ref_sep <- stan_glm(exp(alpha_ref) ~ group,
+                                M1_w_ID %>% filter(type == 'sep'),
+                                family = gaussian())
+
+summary(sanity_alpha_ref_sep)
+sanity_alpha_post_sep <- as.matrix(sanity_alpha_ref_sep) %>%
+  as.data.frame() %>%
+  mutate(type = 'SEP')
+
+## Plot ----
+
+library(ggridges)
+library(tidybayes)
+
+rbind(sanity_beta_post_tog,
+      sanity_beta_post_sep) %>%
+  ggplot(aes(x = groupCON, y = type)) +
+  stat_interval(.width = c(.90, .8, .5)) +
+  ggdist::stat_halfeye(.width = c(.90, .8, .5))+
+  geom_vline(xintercept = 0, size = 1)+
+  scale_fill_brewer() +
+  labs(x = expression(paste(Delta, mu, '[CON-BPD]'))) +
+  coord_cartesian(xlim = c(-6, 4))+
+  theme_bw(base_size = 24) +
+  theme(
+    panel.border  = element_blank(),
+    legend.position = 'none',
+    panel.grid    = element_blank(),
+    axis.ticks.y  = element_blank(),
+    axis.title.y  = element_blank()
+  ) +
+
+ggplot(M1_w_ID_diff, aes(x = exp(full), y = exp(sep))) +
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  labs(x = expression(paste(beta[par]^ref, ' [FULL]')),
+       y = expression(paste(beta[par]^ref, ' [SEP]')), ) +
+  theme_bw(base_size = 24) +
+  theme(
+    panel.border  = element_blank(),
+    legend.position = 'none',
+    panel.grid    = element_blank(),
+    axis.ticks.y  = element_blank()
+  ) +
+
+rbind(sanity_alpha_post_tog,
+      sanity_alpha_post_sep) %>%
+  ggplot(aes(x = groupCON, y = type)) +
+  stat_interval(.width = c(.90, .8, .5)) +
+  ggdist::stat_halfeye(.width = c(.90, .8, .5))+
+  geom_vline(xintercept = 0, size = 1)+
+  scale_fill_brewer() +
+  labs(x = expression(paste(Delta, mu, '[CON-BPD]'))) +
+  coord_cartesian(xlim = c(-6, 4))+
+  theme_bw(base_size = 24) +
+  theme(
+    panel.border  = element_blank(),
+    legend.position = 'none',
+    panel.grid    = element_blank(),
+    axis.ticks.y  = element_blank(),
+    axis.title.y  = element_blank()
+  ) +
+
+ggplot(M1_w_ID_diff_a, aes(x = exp(full), y = exp(sep))) +
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  labs(x = expression(paste(alpha[par]^ref, ' [FULL]')),
+       y = expression(paste(alpha[par]^ref, ' [SEP]')), ) +
+  theme_bw(base_size = 24) +
+  theme(
+    panel.border  = element_blank(),
+    legend.position = 'none',
+    panel.grid    = element_blank(),
+    axis.ticks.y  = element_blank()
+  )
+
+## Decide whether beta or alpha more important ----
+
+#first check within M4 to see which median difference is largest
+stan_glm(val ~ parm,
+         joint_parms_ex %>%
+           pivot_longer(c(beta, beta_par), names_to = 'parm', values_to = 'val') %>%
+           filter(group == 'BPD_full') %>%
+           dplyr::select(parm, val, ID) %>%
+           distinct(),
+         family = gaussian()) %>%
+  summary()
+
+stan_glm(val ~ parm,
+         joint_parms_ex %>%
+           pivot_longer(c(alpha, alpha_par), names_to = 'parm', values_to = 'val') %>%
+           filter(group == 'BPD_full') %>%
+           dplyr::select(parm, val, ID) %>%
+           distinct(),
+         family = gaussian()) %>%
+  summary()
+
+#then check in M1 forced fits if alpha_ref value is larger
+stan_glm(alpha_ref ~ group,
+         M1_w_ID %>% filter(type == 'full'),
+         family = gaussian()) %>%
+  summary()
+
+stan_glm(alpha_ref ~ group,
+         M1_w_ID %>% filter(type == 'sep'),
+         family = gaussian()) %>%
+  summary()
+
+
+top_median_parm <- joint_parms_ex %>%
+  filter(group=='BPD_full') %>%
+  ggplot()+
+  geom_density(aes(beta), fill = 'darkred', alpha = 0.5)+
+  stat_central_tendency(aes(beta), type = 'median', colour = 'darkred')+
+  geom_density(aes(beta_par), fill = 'grey', alpha = 0.5)+
+  stat_central_tendency(aes(beta_par), type = 'median', colour = 'black')+
+  labs(x = expression(beta))+
+  coord_cartesian()
+bottom_median_parm <- joint_parms_ex %>%
+  filter(group=='BPD_full') %>%
+  ggplot()+
+  geom_density(aes(alpha), fill = 'darkred', alpha = 0.5)+
+  stat_central_tendency(aes(alpha), type = 'median', colour = 'darkred')+
+  geom_density(aes(alpha_par), fill = 'grey', alpha = 0.5)+
+  stat_central_tendency(aes(alpha_par), type = 'median', colour = 'black')+
+  labs(x = expression(alpha))+
+  coord_cartesian()
+
+top_median_parm/bottom_median_parm&
+  theme(panel.grid = element_blank(),
+        axis.title.y = element_blank())
+
+# Supplementary Figure 11 --------------------------------------------------
+
+# Initialize an empty list to store processed data frames
+model_data_list <- list()
+
+# Loop through models M1-M4
+for (model in c("M1", "M2", "M3", "M4")) {
+  # Load .mat files for BPD and CON groups
+  BPD_mat <- readMat(paste0('MatlabFitting/HBI_fullBPD/hbi_g1_BPD_', model, '.mat'))
+  CON_mat <- readMat(paste0('MatlabFitting/HBI_fullBPD/hbi_g2_BPD_', model, '.mat'))
+
+  # Extract and bind parameters from both groups
+  model_bind <- rbind(
+    as.data.frame(BPD_mat$cbm[,,1]$output[,,1]$parameters[1,]),
+    as.data.frame(CON_mat$cbm[,,1]$output[,,1]$parameters[1,])
+  )
+
+  # Rename columns
+  if (model %in% c("M1", "M2")) {
+    # Add placeholder columns for M1 and M2
+    model_bind <- model_bind %>%
+      mutate(alpha_par = NA, beta_par = NA) %>%
+      dplyr::select(1:4, alpha_par, beta_par, everything())
+  }
+
+  colnames(model_bind) <- c('alpha', 'beta', 'alpha_v', 'beta_v',
+                            'alpha_par', 'beta_par', 'alpha_ref', 'beta_ref')
+
+  # Add ID and group columns
+  model_bind <- model_bind %>%
+    mutate(ID = c(ID1$ID, ID2$ID),
+           group = ifelse(nchar(ID) < 10, 'BPD', 'CON'),
+           Model = model) # Add the model name (M1-M4)
+
+  # Append to the list
+  model_data_list[[model]] <- model_bind
+}
+
+# Combine all models into a single data frame
+final_data <- bind_rows(model_data_list)
+
+## Correlations between parameters -----
+
+# Create a helper function to calculate correlations
+calculate_correlation <- function(x, y, label_x, label_y) {
+  cor_result <- cor.test(x, y)
+  data.frame(
+    x_label = label_x,
+    y_label = label_y,
+    R = cor_result$estimate,
+    p_value = cor_result$p.value
+  )
+}
+
+# Prepare data for correlations
+correlations <- rbind(
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M4", ]$beta -
+          final_data[final_data$Model == "M4", ]$beta_par),
+    exp(final_data[final_data$Model == "M1", ]$beta_ref),
+    "abs(beta_M4 - beta_par_M4)", "exp(beta_ref_M1)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M4", ]$alpha -
+          final_data[final_data$Model == "M4", ]$alpha_par),
+    exp(final_data[final_data$Model == "M1", ]$alpha_ref),
+    "abs(alpha_M4 - alpha_par_M4)", "exp(alpha_ref_M1)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M3", ]$beta -
+          final_data[final_data$Model == "M3", ]$beta_par),
+    exp(final_data[final_data$Model == "M1", ]$beta_ref),
+    "abs(beta_M3 - beta_par_M3)", "exp(beta_ref_M1)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M3", ]$alpha -
+          final_data[final_data$Model == "M3", ]$alpha_par),
+    exp(final_data[final_data$Model == "M1", ]$alpha_ref),
+    "abs(alpha_M3 - alpha_par_M3)", "exp(alpha_ref_M1)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M4", ]$beta -
+          final_data[final_data$Model == "M4", ]$beta_par),
+    exp(final_data[final_data$Model == "M2", ]$beta_ref),
+    "abs(beta_M4 - beta_par_M4)", "exp(beta_ref_M2)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M4", ]$alpha -
+          final_data[final_data$Model == "M4", ]$alpha_par),
+    exp(final_data[final_data$Model == "M2", ]$alpha_ref),
+    "abs(alpha_M4 - alpha_par_M4)", "exp(alpha_ref_M2)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M3", ]$beta -
+          final_data[final_data$Model == "M3", ]$beta_par),
+    exp(final_data[final_data$Model == "M2", ]$beta_ref),
+    "abs(beta_M3 - beta_par_M3)", "exp(beta_ref_M2)"
+  ),
+  calculate_correlation(
+    abs(final_data[final_data$Model == "M3", ]$alpha -
+          final_data[final_data$Model == "M3", ]$alpha_par),
+    exp(final_data[final_data$Model == "M2", ]$alpha_ref),
+    "abs(alpha_M3 - alpha_par_M3)", "exp(alpha_ref_M2)"
+  ),
+  calculate_correlation(
+    exp(final_data[final_data$Model == "M2", ]$beta_ref),
+    exp(final_data[final_data$Model == "M1", ]$beta_ref),
+    "beta_ref M2", "beta_ref M1"
+  ),
+  calculate_correlation(
+    final_data[final_data$Model == "M3", ]$beta_par,
+    final_data[final_data$Model == "M4", ]$beta_par,
+    "beta_par M3", "beta_par M4"
+  ),
+  calculate_correlation(
+    exp(final_data[final_data$Model == "M2", ]$alpha_ref),
+    exp(final_data[final_data$Model == "M1", ]$alpha_ref),
+    "alpha_ref M2", "alpha_ref M1"
+  ),
+  calculate_correlation(
+    final_data[final_data$Model == "M3", ]$alpha_par,
+    final_data[final_data$Model == "M4", ]$alpha_par,
+    "alpha_par M3", "alpha_par M4"
+  ),
+  calculate_correlation(
+    abs(mean_val_shift_M3[mean_val_shift_M3$Delta=='Delta_A',]$Shift),
+    mean_val_shift_m1$delta_a,
+    "delta a M3", "delta a M1"
+  ),
+  calculate_correlation(
+    abs(mean_val_shift_M3[mean_val_shift_M3$Delta=='Delta_B',]$Shift),
+    mean_val_shift_m1$delta_b,
+    "delta b M3", "delta b M1"
+  )
+)
+
+# Plot the correlations
+ggplot(correlations[1:8,], aes(x = x_label, y = y_label, fill = R)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "blue", high = "red", mid = "white",
+    midpoint = 0, limit = c(0, 1), name = "Correlation (R)"
+  ) +
+  geom_text(aes(label = sprintf("R=%.2f\np=%.2f", R, p_value)), color = "black", size = 4) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    text = element_text(size = 18),
+    legend.position = 'top',
+    legend.key.width = unit(1.5, 'cm'),
+    legend.key.spacing = unit(0.5, 'cm'),
+    legend.justification.top = c(0,0)
+  ) +
+  scale_x_discrete(labels = c(
+    expression(paste(alpha[ppt]^m,'-',alpha[par]^m, '(M3)')),
+    expression(paste(alpha[ppt]^m,'-',alpha[par]^m, '(M4)')),
+    expression(paste(beta[ppt]^m,'-',beta[par]^m, '(M3)')),
+    expression(paste(beta[ppt]^m,'-',beta[par]^m, '(M4)'))
+  ))+
+  scale_y_discrete(labels = c(
+    expression(paste(alpha[ppt]^ref, '(M1)')),
+    expression(paste(alpha[ppt]^ref, '(M2)')),
+    expression(paste(beta[ppt]^ref,  '(M1)')),
+    expression(paste(beta[ppt]^ref,  '(M2)'))
+  ))+
+
+ggplot(correlations[9:14,], aes(x = x_label, y = y_label, fill = R)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "blue", high = "red", mid = "white",
+    midpoint = 0, limit = c(0, 1), name = "Correlation (R)"
+  ) +
+  geom_text(aes(label = sprintf("R=%.2f\np=%.2f", R, p_value)), color = "black", size = 4) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    text = element_text(size = 18),
+    legend.key.width = unit(1, 'cm'),
+    legend.position = 'none'
+  ) +
+  scale_x_discrete(labels = c(
+    expression(paste(alpha[par]^m, '(M3)')),
+    expression(paste(alpha[ppt]^ref, '(M2)')),
+    expression(paste(beta[par]^m, '(M3)')),
+    expression(paste(beta[ppt]^ref, '(M2)')),
+    expression(paste(Delta, alpha[ppt]^m, '(M3)')),
+    expression(paste(Delta, beta[ppt]^m, '(M3)'))
+  ))+
+  scale_y_discrete(labels = c(
+    expression(paste(alpha[par]^m, '(M4)')),
+    expression(paste(alpha[ppt]^ref, '(M1)')),
+    expression(paste(beta[par]^m, '(M4)')),
+    expression(paste(beta[ppt]^ref, '(M1)')),
+    expression(paste(Delta, alpha[ppt]^m, '(M1)')),
+    expression(paste(Delta, beta[ppt]^m, '(M1)'))
+  ))
+
+
+# Supplementary Table S2 --------------------------------------------------
+
+## Directly Approximated -------------------------------------------------
+
+# Initialize an empty list to store processed data frames
+model_data_list <- list()
+
+# Loop through models M1-M4
+for (model in c("M1", "M2", "M3", "M4")) {
+  # Load .mat files for BPD and CON groups
+  BPD_mat <- readMat(paste0('FittedModelFiles/hbi_g1_BPD_', model, '.mat'))
+  CON_mat <- readMat(paste0('FittedModelFiles/hbi_g2_BPD_', model, '.mat'))
+
+  # Extract and bind parameters from both groups
+  model_bind <- rbind(
+    as.data.frame(BPD_mat$cbm[,,1]$output[,,1]$parameters[1,]),
+    as.data.frame(CON_mat$cbm[,,1]$output[,,1]$parameters[1,])
+  )
+
+  # Rename columns
+  if (model %in% c("M1", "M2")) {
+    # Add placeholder columns for M1 and M2
+    model_bind <- model_bind %>%
+      mutate(alpha_par = NA, beta_par = NA) %>%
+      dplyr::select(1:4, alpha_par, beta_par, everything())
+  }
+
+  colnames(model_bind) <- c('alpha', 'beta', 'alpha_v', 'beta_v',
+                            'alpha_par', 'beta_par', 'alpha_ref', 'beta_ref')
+
+  # Add ID and group columns
+  model_bind <- model_bind %>%
+    mutate(ID = c(ID1$ID, ID2$ID),
+           group = ifelse(nchar(ID) < 10, 'BPD', 'CON'),
+           Model = model) # Add the model name (M1-M4)
+
+  # Append to the list
+  model_data_list[[model]] <- model_bind
+}
+
+# Combine all models into a single data frame
+final_data <- bind_rows(model_data_list)
+
+final_data %>%
+  group_by(Model, group) %>%
+  filter(Model != 'M1') %>%
+  summarise(
+    alpha_mean = mean((1 / (1 + exp(-alpha))) * 30, na.rm = TRUE),
+    alpha_sd = sd((1 / (1 + exp(-alpha))) * 30, na.rm = TRUE),
+    beta_mean = mean(beta, na.rm = TRUE),
+    beta_sd = sd(beta, na.rm = TRUE),
+    alpha_v_mean = mean(exp(alpha_v), na.rm = TRUE),
+    alpha_v_sd = sd(exp(alpha_v), na.rm = TRUE),
+    beta_v_mean = mean(exp(beta_v), na.rm = TRUE),
+    beta_v_sd = sd(exp(beta_v), na.rm = TRUE),
+    alpha_par_mean = mean((1 / (1 + exp(-alpha_par))) * 30, na.rm = TRUE),
+    alpha_par_sd = sd((1 / (1 + exp(-alpha_par))) * 30, na.rm = TRUE),
+    beta_par_mean = mean(beta_par, na.rm = TRUE),
+    beta_par_sd = sd(beta_par, na.rm = TRUE),
+    alpha_ref_mean = mean(exp(alpha_ref), na.rm = TRUE),
+    alpha_ref_sd = sd(exp(alpha_ref), na.rm = TRUE),
+    beta_ref_mean = mean(exp(beta_ref), na.rm = TRUE),
+    beta_ref_sd = sd(exp(beta_ref), na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  as.data.frame() %>%
+  filter(Model == 'M4') %>%
+  t()
+
+summary(stan_glm(exp(beta_ref) ~ group, data = final_data %>% filter(Model=='M4')))
+
+## Derived -------------------------------------------------
+
+# Define constants
+lim <- 30
+res <- 0.25
+
+# Initialize an empty list to store model data
+all_model_data_mean_val <- list()
+LL_sum <- matrix(NA, nrow = 4, ncol = 2)
+
+# Loop through models M1 to M4
+models <- c("M1", "M2", "M3", "M4")
+rownames(LL_sum) <- models
+
+for (model in models) {
+  # Load corresponding .mat files for BPD and CON
+  BPD_sim_sep <- readMat(paste0('Data_Simulated/full_sim_g1_', model, '_only.mat'))
+  CON_sim_sep <- readMat(paste0('Data_Simulated/full_sim_g2_', model, '_only.mat'))
+
+  # Initialize data frames for this model
+  BPDdist <- NULL
+  CONdist <- NULL
+
+  # Process BPD Group
+  for (i in 1:length(ID1)) {
+    xdist <- data.frame(
+      bP1  = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg1),
+      bP2a = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg2a),
+      bP2b = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg2b),
+      bP3  = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg3),
+      aP1  = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg1),
+      aP2a = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+      aP2b = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg2b),
+      aP3  = as.vector(BPD_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg3),
+      beta = seq(-lim, lim, res),
+      alpha = seq(0, lim, res/2),
+      ID = ID1[i],
+      group = 'BPD',
+      Model = model
+    )
+    BPDdist <- if (is.null(BPDdist)) xdist else rbind(BPDdist, xdist)
+  }
+
+  # Process CON Group
+  for (i in 1:length(ID2)) {
+    zdist <- data.frame(
+      bP1  = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg1),
+      bP2a = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg2a),
+      bP2b = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg2b),
+      bP3  = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$beta.marg3),
+      aP1  = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg1),
+      aP2a = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg2a),
+      aP2b = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg2b),
+      aP3  = as.vector(CON_sim_sep$results[i,][[1]][[1]][,,1]$alpha.marg3),
+      beta = seq(-lim, lim, res),
+      alpha = seq(0, lim, res/2),
+      ID = ID2[i],
+      group = 'CON',
+      Model = model
+    )
+    CONdist <- if (is.null(CONdist)) zdist else rbind(CONdist, zdist)
+  }
+
+  # Combine BPD and CON data for this model
+  int_dist_all_mod <- rbind(BPDdist, CONdist)
+
+  # Compute mean and standard deviations for key variables
+  mean_val_shift_all_mod <- int_dist_all_mod %>%
+    group_by(ID) %>%
+    mutate(
+      B1  = sum(beta * bP1),
+      B2a = sum(beta * bP2a),
+      B2b = sum(beta * bP2b),
+      B3  = sum(beta * bP3),
+      A1  = sum(alpha * aP1),
+      A2a = sum(alpha * aP2a),
+      A2b = sum(alpha * aP2b),
+      A3  = sum(alpha * aP3),
+      B1_sd = sqrt(sum((beta - B1)^2 * bP1)),
+      B2a_sd = sqrt(sum((beta - B2a)^2 * bP2a)),
+      B2b_sd = sqrt(sum((beta - B2b)^2 * bP2b)),
+      B3_sd = sqrt(sum((beta - B3)^2 * bP3)),
+      A1_sd = sqrt(sum((alpha - A1)^2 * aP1)),
+      A2a_sd = sqrt(sum((alpha - A2a)^2 * aP2a)),
+      A2b_sd = sqrt(sum((alpha - A2b)^2 * aP2b)),
+      A3_sd = sqrt(sum((alpha - A3)^2 * aP3)),
+      delta_a_par = abs(A2b - A2a),
+      delta_b_par = abs(B2b - B2a),
+      delta_b = abs(B3 - B1),
+      delta_a = abs(A3 - A1),
+      delta_b_sd = abs(B3_sd - B1_sd),
+      delta_a_sd = abs(A3_sd - A1_sd)
+    ) %>%
+    dplyr::select(ID, group, Model, B1:delta_a_sd) %>%
+    distinct()
+
+  # Store results for this model
+  all_model_data_mean_val[[model]] <- mean_val_shift_all_mod
+
+}
+
+# Combine data across all models
+combined_all_mod_mean_val <- bind_rows(all_model_data_mean_val)
+
+combined_all_mod_mean_val %>%
+  filter(Model == 'M3') %>%
+  group_by(group) %>%
+  summarise(mean = mean(delta_a_par),
+            sd = sd(delta_a_par))
+
+rstanarm::stan_glm(B2b_sd ~ group,
+                   data = combined_all_mod_mean_val %>%
+                     filter(Model == 'M3')) %>%
+  summary()
+
+summary(lm(Shift ~ group * Delta,
+           data = combined_all_mod_mean_val %>%
+                     filter(Model == 'M3') %>%
+             pivot_longer(delta_b_sd:delta_a_sd, names_to = 'Delta', values_to = 'Shift') %>%
+             distinct()))
+
+summary_data <- combined_all_mod_mean_val %>%
+  group_by(Model) %>%
+  summarise(
+    mean_bP2b_BPD = mean(B2b_sd[group == "BPD"], na.rm = TRUE),
+    sd_bP2b_BPD = sd(B2b_sd[group == "BPD"], na.rm = TRUE),
+    mean_bP2b_CON = mean(B2b_sd[group == "CON"], na.rm = TRUE),
+    sd_bP2b_CON = sd(B2b_sd[group == "CON"], na.rm = TRUE),
+    ttest_bP2b_p = t.test(B2b_sd[group == "BPD"], B2b_sd[group == "CON"])$p.value,
+
+    mean_aP2b_BPD = mean(A2b_sd[group == "BPD"], na.rm = TRUE),
+    sd_aP2b_BPD = sd(A2b_sd[group == "BPD"], na.rm = TRUE),
+    mean_aP2b_CON = mean(A2b_sd[group == "CON"], na.rm = TRUE),
+    sd_aP2b_CON = sd(A2b_sd[group == "CON"], na.rm = TRUE),
+    ttest_aP2b_p = t.test(A2b_sd[group == "BPD"], A2b_sd[group == "CON"])$p.value,
+
+    .groups = "drop"
+  )
+
+# Print summary
+print(summary_data)
+
+# Supplementary Table S3 -------------------------------------
+
+regression_results <- list()
+
+# Define the models to iterate over
+models <- c("M1", "M2", "M3", "M4")
+
+# Loop through models M1 to M4
+for (model in models) {
+  # Load corresponding .mat files for BPD and CON
+  BPD_sim_sep <- readMat(paste0('Data_Simulated/full_sim_g1_', model, '_only.mat'))
+  CON_sim_sep <- readMat(paste0('Data_Simulated/full_sim_g2_', model, '_only.mat'))
+
+  b_updates_sep <- intent_dat %>%
+    filter(Phase==2) %>%
+    dplyr::select(ID, trial, correctSum) %>%
+    mutate(group = ifelse(nchar(ID) < 10, 'BPD', 'CON'),
+           kl_div_a = 0,
+           kl_div_b = 0)
+
+  #loops for all
+  for(k in 1:2){
+    if(k == 1){x = BPD_sim_sep$results; group = 'BPD'; ID = ID1}
+    if(k == 2){x = CON_sim_sep$results; group = 'CON'; ID = ID2}
+    for(j in 1:length(ID)){
+      kl_divsa = rep(NA, 54)
+      kl_divsb = kl_divsa
+      for(i in 1:54){
+        x[j,][[1]][[1]][,,1]$alpha.cont[,36] = x[j,][[1]][[1]][,,1]$alpha.marg1
+        x[j,][[1]][[1]][,,1]$beta.cont[,36]  = x[j,][[1]][[1]][,,1]$beta.marg1
+
+        bsa            = x[j,][[1]][[1]][,,1]$alpha.cont[,36:90]
+        b_t2a          = bsa[,i+1]
+        b_t1a          = bsa[,i]
+        bsb            = x[j,][[1]][[1]][,,1]$beta.cont[,36:90]
+        b_t2b          = bsb[,i+1]
+        b_t1b          = bsb[,i]
+        kl_divsa[i]    = calculate_KL_divergence(b_t2a, b_t1a)
+        kl_divsb[i]    = calculate_KL_divergence(b_t2b, b_t1b)
+      }
+      b_updates_sep[b_updates_sep$group==group & b_updates_sep$ID==ID[j],'kl_div_a'][1:54] <- kl_divsa
+      b_updates_sep[b_updates_sep$group==group & b_updates_sep$ID==ID[j],'kl_div_b'][1:54] <- kl_divsb
+    }
+  }
+
+    model_kl_grp_a   <- summary(lmerTest::lmer(scale(kl_div_a) ~ group + (1 | ID),
+                                     data = b_updates_sep %>% filter(trial %in% c(2:54))))
+    model_kl_grp_b   <- summary(lmerTest::lmer(scale(kl_div_b) ~ group + (1 | ID),
+                                       data = b_updates_sep %>% filter(trial %in% c(2:54))))
+    b_updates_sep <- b_updates_sep %>%
+      pivot_longer(kl_div_a:kl_div_b, names_to = 'kl', values_to = 'div')
+
+    # Regression analysis for KL divergence (alpha)
+    model_kl_trial   <- summary(lmerTest::lmer(scale(div) ~ trial + (1 | ID),
+                                         data = b_updates_sep %>% filter(trial %in% c(2:54))))
+    model_kl_type    <- summary(lmerTest::lmer(scale(div) ~ kl + (1 | ID),
+                                         data = b_updates_sep %>% filter(trial %in% c(2:54))))
+    model_kl_int     <- summary(lmerTest::lmer(scale(div) ~ kl * trial + (1 | ID),
+                                         data = b_updates_sep %>% filter(trial %in% c(2:54))))
+    # Store results in a list
+    regression_results[[model]] <- list(
+      kl =  model_kl_type,
+      tr =  model_kl_trial,
+      int=  model_kl_int,
+      grpa= model_kl_grp_a,
+      grpb= model_kl_grp_b
+    )
+}
+
+print(regression_results[[3]])
